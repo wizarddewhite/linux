@@ -308,29 +308,20 @@ static void __ref adjust_range_page_size_mask(struct map_range *mr,
 	}
 }
 
-static const char *page_size_string(struct map_range *mr)
+static void __meminit mr_print(struct map_range *mr, unsigned int maxidx)
 {
-	static const char str_1g[] = "1G";
-	static const char str_2m[] = "2M";
-	static const char str_4m[] = "4M";
-	static const char str_4k[] = "4k";
+#if defined(CONFIG_X86_32) && !defined(CONFIG_X86_PAE)
+	static const char *sz[2] = { "4K", "4M" };
+#else
+	static const char *sz[4] = { "4K", "2M", "1G", "" };
+#endif
+	unsigned int idx, s;
 
-	if (mr->page_size_mask & (1U<<PG_LEVEL_1G))
-		return str_1g;
-	/*
-	 * 32-bit without PAE has a 4M large page size.
-	 * PG_LEVEL_2M is misnamed, but we can at least
-	 * print out the right size in the string.
-	 */
-	if (IS_ENABLED(CONFIG_X86_32) &&
-	    !IS_ENABLED(CONFIG_X86_PAE) &&
-	    mr->page_size_mask & (1U<<PG_LEVEL_2M))
-		return str_4m;
-
-	if (mr->page_size_mask & (1U<<PG_LEVEL_2M))
-		return str_2m;
-
-	return str_4k;
+	for (idx = 0; idx < maxidx; idx++, mr++) {
+		s = (mr->page_size_mask >> PG_LEVEL_2M) & (ARRAY_SIZE(sz) - 1);
+		pr_debug(" [mem %#010lx-%#010lx] page size %s\n",
+			 mr->start, mr->end - 1, sz[s]);
+	}
 }
 
 static int __meminit split_mem_range(struct map_range *mr,
@@ -425,11 +416,7 @@ static int __meminit split_mem_range(struct map_range *mr,
 		nr_range--;
 	}
 
-	for (i = 0; i < nr_range; i++)
-		pr_debug(" [mem %#010lx-%#010lx] page %s\n",
-				mr[i].start, mr[i].end - 1,
-				page_size_string(&mr[i]));
-
+	mr_print(mr, nr_range);
 	return nr_range;
 }
 
