@@ -259,14 +259,14 @@ static void setup_pcid(void)
 #endif
 
 static int __meminit save_mr(struct map_range *mr, int nr_range,
-			     unsigned long start_pfn, unsigned long end_pfn,
+			     unsigned long start, unsigned long end,
 			     unsigned long page_size_mask)
 {
 	if (start_pfn < end_pfn) {
 		if (nr_range >= NR_RANGE_MR)
 			panic("run out of range for init_memory_mapping\n");
-		mr[nr_range].start = start_pfn<<PAGE_SHIFT;
-		mr[nr_range].end   = end_pfn<<PAGE_SHIFT;
+		mr[nr_range].start = start_pfn;
+		mr[nr_range].end   = end_pfn;
 		mr[nr_range].page_size_mask = page_size_mask;
 		nr_range++;
 	}
@@ -328,14 +328,13 @@ static int __meminit split_mem_range(struct map_range *mr,
 				     unsigned long start,
 				     unsigned long end)
 {
-	unsigned long start_pfn, end_pfn, limit_pfn;
-	unsigned long pfn;
+	unsigned long addr, limit;
 	int i, nr_range = 0;
 
-	limit_pfn = PFN_DOWN(end);
+	limit = end;
 
 	/* head if not big page alignment ? */
-	pfn = start_pfn = PFN_DOWN(start);
+	addr = start;
 #ifdef CONFIG_X86_32
 	/*
 	 * Don't use a large page for the first 2/4MB of memory
@@ -343,61 +342,61 @@ static int __meminit split_mem_range(struct map_range *mr,
 	 * and overlapping MTRRs into large pages can cause
 	 * slowdowns.
 	 */
-	if (pfn == 0)
-		end_pfn = PFN_DOWN(PMD_SIZE);
+	if (addr == 0)
+		end = PMD_SIZE;
 	else
-		end_pfn = round_up(pfn, PFN_DOWN(PMD_SIZE));
+		end = round_up(addr, PMD_SIZE);
 #else /* CONFIG_X86_64 */
-	end_pfn = round_up(pfn, PFN_DOWN(PMD_SIZE));
+	end = round_up(addr, PMD_SIZE);
 #endif
-	if (end_pfn > limit_pfn)
-		end_pfn = limit_pfn;
-	if (start_pfn < end_pfn) {
-		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn, 0);
-		pfn = end_pfn;
+	if (end > limit)
+		end = limit;
+	if (start < end) {
+		nr_range = save_mr(mr, nr_range, start, end, 0);
+		addr = end;
 	}
 
 	/* big page (2M) range */
-	start_pfn = round_up(pfn, PFN_DOWN(PMD_SIZE));
+	start = round_up(addr, PMD_SIZE);
 #ifdef CONFIG_X86_32
-	end_pfn = round_down(limit_pfn, PFN_DOWN(PMD_SIZE));
+	end = round_down(limit, PMD_SIZE);
 #else /* CONFIG_X86_64 */
-	end_pfn = round_up(pfn, PFN_DOWN(PUD_SIZE));
-	if (end_pfn > round_down(limit_pfn, PFN_DOWN(PMD_SIZE)))
-		end_pfn = round_down(limit_pfn, PFN_DOWN(PMD_SIZE));
+	end = round_up(addr, PUD_SIZE);
+	if (end > round_down(limit, PMD_SIZE))
+		end = round_down(limit, PMD_SIZE);
 #endif
 
-	if (start_pfn < end_pfn) {
-		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
+	if (start < end) {
+		nr_range = save_mr(mr, nr_range, start, end,
 				page_size_mask & (1U<<PG_LEVEL_2M));
-		pfn = end_pfn;
+		addr = end;
 	}
 
 #ifdef CONFIG_X86_64
 	/* big page (1G) range */
-	start_pfn = round_up(pfn, PFN_DOWN(PUD_SIZE));
-	end_pfn = round_down(limit_pfn, PFN_DOWN(PUD_SIZE));
-	if (start_pfn < end_pfn) {
-		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
+	start = round_up(addr, PUD_SIZE);
+	end = round_down(limit, PUD_SIZE);
+	if (start < end) {
+		nr_range = save_mr(mr, nr_range, start, end,
 				page_size_mask &
 				 ((1U<<PG_LEVEL_2M)|(1U<<PG_LEVEL_1G)));
-		pfn = end_pfn;
+		addr = end;
 	}
 
 	/* tail is not big page (1G) alignment */
-	start_pfn = round_up(pfn, PFN_DOWN(PMD_SIZE));
-	end_pfn = round_down(limit_pfn, PFN_DOWN(PMD_SIZE));
-	if (start_pfn < end_pfn) {
-		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
+	start = round_up(addr, PMD_SIZE);
+	end = round_down(limit, PMD_SIZE);
+	if (start < end) {
+		nr_range = save_mr(mr, nr_range, start, end,
 				page_size_mask & (1U<<PG_LEVEL_2M));
-		pfn = end_pfn;
+		addr = end;
 	}
 #endif
 
 	/* tail is not big page (2M) alignment */
-	start_pfn = pfn;
-	end_pfn = limit_pfn;
-	nr_range = save_mr(mr, nr_range, start_pfn, end_pfn, 0);
+	start = addr;
+	end = limit;
+	nr_range = save_mr(mr, nr_range, start, end, 0);
 
 	if (!after_bootmem)
 		adjust_range_page_size_mask(mr, nr_range);
