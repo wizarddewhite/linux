@@ -165,12 +165,12 @@ int after_bootmem __ro_after_init;
 early_param_on_off("gbpages", "nogbpages", direct_gbpages, CONFIG_X86_DIRECT_GBPAGES);
 
 struct map_range {
-	unsigned long start;
-	unsigned long end;
-	unsigned page_size_mask;
+	unsigned long	start;
+	unsigned long	end;
+	unsigned int	page_size_mask;
 };
 
-static int page_size_mask;
+static unsigned int page_size_mask __ro_after_init;
 
 static void __init probe_page_size_mask(void)
 {
@@ -180,7 +180,7 @@ static void __init probe_page_size_mask(void)
 	 * large pages into small in interrupt context, etc.
 	 */
 	if (boot_cpu_has(X86_FEATURE_PSE) && !debug_pagealloc_enabled())
-		page_size_mask |= 1 << PG_LEVEL_2M;
+		page_size_mask |= 1U << PG_LEVEL_2M;
 	else
 		direct_gbpages = 0;
 
@@ -204,7 +204,7 @@ static void __init probe_page_size_mask(void)
 	/* Enable 1 GB linear kernel mappings if available: */
 	if (direct_gbpages && boot_cpu_has(X86_FEATURE_GBPAGES)) {
 		printk(KERN_INFO "Using GB pages for direct mapping\n");
-		page_size_mask |= 1 << PG_LEVEL_1G;
+		page_size_mask |= 1U << PG_LEVEL_1G;
 	} else {
 		direct_gbpages = 0;
 	}
@@ -284,8 +284,8 @@ static void __ref adjust_range_page_size_mask(struct map_range *mr,
 	int i;
 
 	for (i = 0; i < nr_range; i++) {
-		if ((page_size_mask & (1<<PG_LEVEL_2M)) &&
-		    !(mr[i].page_size_mask & (1<<PG_LEVEL_2M))) {
+		if ((page_size_mask & (1U<<PG_LEVEL_2M)) &&
+		    !(mr[i].page_size_mask & (1U<<PG_LEVEL_2M))) {
 			unsigned long start = round_down(mr[i].start, PMD_SIZE);
 			unsigned long end = round_up(mr[i].end, PMD_SIZE);
 
@@ -295,15 +295,15 @@ static void __ref adjust_range_page_size_mask(struct map_range *mr,
 #endif
 
 			if (memblock_is_region_memory(start, end - start))
-				mr[i].page_size_mask |= 1<<PG_LEVEL_2M;
+				mr[i].page_size_mask |= 1U<<PG_LEVEL_2M;
 		}
-		if ((page_size_mask & (1<<PG_LEVEL_1G)) &&
-		    !(mr[i].page_size_mask & (1<<PG_LEVEL_1G))) {
+		if ((page_size_mask & (1U<<PG_LEVEL_1G)) &&
+		    !(mr[i].page_size_mask & (1U<<PG_LEVEL_1G))) {
 			unsigned long start = round_down(mr[i].start, PUD_SIZE);
 			unsigned long end = round_up(mr[i].end, PUD_SIZE);
 
 			if (memblock_is_region_memory(start, end - start))
-				mr[i].page_size_mask |= 1<<PG_LEVEL_1G;
+				mr[i].page_size_mask |= 1U<<PG_LEVEL_1G;
 		}
 	}
 }
@@ -315,7 +315,7 @@ static const char *page_size_string(struct map_range *mr)
 	static const char str_4m[] = "4M";
 	static const char str_4k[] = "4k";
 
-	if (mr->page_size_mask & (1<<PG_LEVEL_1G))
+	if (mr->page_size_mask & (1U<<PG_LEVEL_1G))
 		return str_1g;
 	/*
 	 * 32-bit without PAE has a 4M large page size.
@@ -324,10 +324,10 @@ static const char *page_size_string(struct map_range *mr)
 	 */
 	if (IS_ENABLED(CONFIG_X86_32) &&
 	    !IS_ENABLED(CONFIG_X86_PAE) &&
-	    mr->page_size_mask & (1<<PG_LEVEL_2M))
+	    mr->page_size_mask & (1U<<PG_LEVEL_2M))
 		return str_4m;
 
-	if (mr->page_size_mask & (1<<PG_LEVEL_2M))
+	if (mr->page_size_mask & (1U<<PG_LEVEL_2M))
 		return str_2m;
 
 	return str_4k;
@@ -378,7 +378,7 @@ static int __meminit split_mem_range(struct map_range *mr,
 
 	if (start_pfn < end_pfn) {
 		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
-				page_size_mask & (1<<PG_LEVEL_2M));
+				page_size_mask & (1U<<PG_LEVEL_2M));
 		pfn = end_pfn;
 	}
 
@@ -389,7 +389,7 @@ static int __meminit split_mem_range(struct map_range *mr,
 	if (start_pfn < end_pfn) {
 		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
 				page_size_mask &
-				 ((1<<PG_LEVEL_2M)|(1<<PG_LEVEL_1G)));
+				 ((1U<<PG_LEVEL_2M)|(1U<<PG_LEVEL_1G)));
 		pfn = end_pfn;
 	}
 
@@ -398,7 +398,7 @@ static int __meminit split_mem_range(struct map_range *mr,
 	end_pfn = round_down(limit_pfn, PFN_DOWN(PMD_SIZE));
 	if (start_pfn < end_pfn) {
 		nr_range = save_mr(mr, nr_range, start_pfn, end_pfn,
-				page_size_mask & (1<<PG_LEVEL_2M));
+				page_size_mask & (1U<<PG_LEVEL_2M));
 		pfn = end_pfn;
 	}
 #endif
