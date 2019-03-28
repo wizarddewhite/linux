@@ -160,7 +160,7 @@ void  __init early_alloc_pgt_buf(void)
 	pgt_buf_top = pgt_buf_start + (tables >> PAGE_SHIFT);
 }
 
-int after_bootmem;
+int after_bootmem __ro_after_init;
 
 early_param_on_off("gbpages", "nogbpages", direct_gbpages, CONFIG_X86_DIRECT_GBPAGES);
 
