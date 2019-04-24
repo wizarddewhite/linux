@@ -372,6 +372,8 @@ static void __lru_cache_activate_page(struct page *page)
 void mark_page_accessed(struct page *page)
 {
 	page = compound_head(page);
+	inc_node_page_state(page, NR_ACCESSED);
+
 	if (!PageReferenced(page)) {
 		SetPageReferenced(page);
 	} else if (PageUnevictable(page)) {
