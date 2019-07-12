@@ -247,6 +247,9 @@ enum node_stat_item {
 	NR_DIRTIED,		/* page dirtyings since bootup */
 	NR_WRITTEN,		/* page writings since bootup */
 	NR_KERNEL_MISC_RECLAIMABLE,	/* reclaimable non-slab kernel pages */
+#ifdef CONFIG_NUMA_BALANCING
+	NUMA_TRY_MIGRATE,	/* pages to try to migrate via NUMA balancing */
+#endif
 	NR_VM_NODE_STAT_ITEMS
 };
 
@@ -766,6 +769,10 @@ typedef struct pglist_data {
 	unsigned long split_queue_len;
 #endif
 
+#ifdef CONFIG_NUMA_BALANCING
+	unsigned long autonuma_jiffies;
+	unsigned long autonuma_try_migrate;
+#endif
 	/* Fields commonly accessed by the page reclaim scanner */
 	struct lruvec		lruvec;
 
