@@ -106,6 +106,9 @@ static inline void clear_page_idle(struct page *page)
 }
 #endif /* CONFIG_64BIT */
 
+extern void node_random_migrate_pages(struct pglist_data *pgdat, int nr_page,
+				      int target_nid);
+
 #else /* !CONFIG_IDLE_PAGE_TRACKING */
 
 static inline bool page_is_young(struct page *page)
@@ -134,6 +137,9 @@ static inline void set_page_idle(struct page *page)
 static inline void clear_page_idle(struct page *page)
 {
 }
+
+static inline void node_random_migrate_pages(struct pglist_data *pgdat,
+					     int nr_page, int target_nid) {}
 
 #endif /* CONFIG_IDLE_PAGE_TRACKING */
 
