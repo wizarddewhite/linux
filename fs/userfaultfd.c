@@ -1405,7 +1405,7 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 		 * If this vma contains ending address, and huge pages
 		 * check alignment.
 		 */
-		if (is_vm_hugetlb_page(cur) && end <= cur->vm_end) {
+		if (end <= cur->vm_end && is_vm_hugetlb_page(cur)) {
 			unsigned long vma_hpagesize = vma_kernel_pagesize(cur);
 
 			ret = -EINVAL;
