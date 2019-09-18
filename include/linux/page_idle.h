@@ -109,8 +109,10 @@ static inline void clear_page_idle(struct page *page)
 extern void node_random_migrate_pages(struct pglist_data *pgdat, int nr_page,
 				      int target_nid);
 extern void node_random_promote_work(struct work_struct *work);
-extern void node_random_promote_start(struct pglist_data *pgdat);
-extern void node_random_promote_stop(struct pglist_data *pgdat);
+extern void node_random_migrate_start(struct pglist_data *pgdat,
+				      struct random_migrate_state *rm_state);
+extern void node_random_migrate_stop(struct random_migrate_state *rm_state);
+extern void node_random_demote_work(struct work_struct *work);
 
 #else /* !CONFIG_IDLE_PAGE_TRACKING */
 
@@ -146,9 +148,13 @@ static inline void node_random_migrate_pages(struct pglist_data *pgdat,
 
 static inline void node_random_promote_work(struct work_struct *work) {}
 
-static inline void node_random_promote_start(struct pglist_data *pgdat) {}
+static inline void node_random_migrate_start(
+	struct pglist_data *pgdat, struct random_migrate_state *rm_state) {}
 
-static inline void node_random_promote_stop(struct pglist_data *pgdat) {}
+static inline void node_random_migrate_stop(
+	struct random_migrate_state *rm_state) {}
+
+static inline void node_random_demote_work(struct work_struct *work) {}
 
 #endif /* CONFIG_IDLE_PAGE_TRACKING */
 
