@@ -1277,7 +1277,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			    !split_huge_page_to_list(page, page_list))
 				rc = migrate_demote_mapping(page);
 
-			if (rc == MIGRATEPAGE_SUCCESS) {
+			if (rc == MIGRATEPAGE_SUCCESS ||
+			    rc == MIGRATEPAGE_DISCARD) {
 				unlock_page(page);
 				if (likely(put_page_testzero(page)))
 					goto free_it;

@@ -1084,6 +1084,12 @@ static int __unmap_and_move(new_page_t get_new_page,
 		try_to_unmap(page,
 			TTU_MIGRATION|TTU_IGNORE_MLOCK|TTU_IGNORE_ACCESS);
 		page_was_mapped = 1;
+		/* Clean MADV_FREE page, discard instead of migrate */
+		if (!PageTransHuge(page) && PageAnon(page) &&
+		    !PageSwapBacked(page) && !PageDirty(page)) {
+			rc = MIGRATEPAGE_DISCARD;
+			goto out_unlock;
+		}
 	}
 
 	if (!page_mapped(page))
@@ -1317,7 +1323,7 @@ out:
 	 * isolation. Otherwise, restore the page to right list unless
 	 * we want to retry.
 	 */
-	if (rc == MIGRATEPAGE_SUCCESS) {
+	if (rc == MIGRATEPAGE_SUCCESS || rc == MIGRATEPAGE_DISCARD) {
 		put_page(page);
 		if (m_detail->reason == MR_MEMORY_FAILURE) {
 			/*
@@ -1546,6 +1552,7 @@ retry:
 				retry++;
 				break;
 			case MIGRATEPAGE_SUCCESS:
+			case MIGRATEPAGE_DISCARD:
 				nr_succeeded++;
 				break;
 			default:
