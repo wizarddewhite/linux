@@ -40,6 +40,7 @@
 #include <linux/rmap.h>
 #include <linux/delayacct.h>
 #include <linux/psi.h>
+#include <linux/migrate.h>
 #include "internal.h"
 
 #define CREATE_TRACE_POINTS
@@ -3191,10 +3192,21 @@ struct page *grab_cache_page_write_begin(struct address_space *mapping,
 	if (flags & AOP_FLAG_NOFS)
 		fgp_flags |= FGP_NOFS;
 
+write_find_page:
 	page = pagecache_get_page(mapping, index, fgp_flags,
 			mapping_gfp_mask(mapping));
-	if (page)
+	if (page) {
+		int ret;
+
 		wait_for_stable_page(page);
+
+		ret = promote_page(page, true);
+		if (ret == MIGRATEPAGE_SUCCESS) {
+			unlock_page(page);
+			put_page(page);
+			goto write_find_page;
+		}
+	}
 
 	return page;
 }
