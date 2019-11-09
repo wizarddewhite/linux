@@ -20,4 +20,9 @@ static inline bool is_vm_hugetlb_page(struct vm_area_struct *vma)
 
 #endif
 
+static inline bool is_vm_dax_page(struct vm_area_struct *vma)
+{
+	return !!(vma->vm_flags & VM_DAX);
+}
+
 #endif

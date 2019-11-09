@@ -1295,7 +1295,7 @@ static __always_inline int validate_range(struct mm_struct *mm,
 static inline bool vma_can_userfault(struct vm_area_struct *vma)
 {
 	return vma_is_anonymous(vma) || is_vm_hugetlb_page(vma) ||
-		vma_is_shmem(vma);
+		vma_is_shmem(vma) || is_vm_dax_page(vma);
 }
 
 static inline bool addr_huge_page_aligned(unsigned long addr,
@@ -1378,6 +1378,13 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 	if (is_vm_hugetlb_page(vma) && !addr_huge_page_aligned(start, vma))
 		goto out_unlock;
 
+	if (is_vm_dax_page(vma)) {
+		unsigned long vma_hpagesize = vma_kernel_pagesize(vma);
+
+		if (start & (vma_hpagesize - 1))
+			goto out_unlock;
+	}
+
 	/*
 	 * Search for not compatible vmas.
 	 */
@@ -1414,6 +1421,16 @@ static int userfaultfd_register(struct userfaultfd_ctx *ctx,
 			ret = -EINVAL;
 
 			if (!addr_huge_page_aligned(end, cur))
+				goto out_unlock;
+		}
+
+		if (is_vm_dax_page(cur) && end <= cur->vm_end &&
+		    end > cur->vm_start) {
+			unsigned long vma_hpagesize = vma_kernel_pagesize(cur);
+
+			ret = -EINVAL;
+
+			if (end & (vma_hpagesize - 1))
 				goto out_unlock;
 		}
 
@@ -1560,6 +1577,13 @@ static int userfaultfd_unregister(struct userfaultfd_ctx *ctx,
 	 */
 	if (is_vm_hugetlb_page(vma) && !addr_huge_page_aligned(start, vma))
 		goto out_unlock;
+
+	if (is_vm_dax_page(vma)) {
+		unsigned long vma_hpagesize = vma_kernel_pagesize(vma);
+
+		if (start & (vma_hpagesize - 1))
+			goto out_unlock;
+	}
 
 	/*
 	 * Search for not compatible vmas.
