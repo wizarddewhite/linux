@@ -512,7 +512,7 @@ vm_fault_t handle_userfault(struct vm_fault *vmf, unsigned long reason)
 			 * visible to other CPUs before reading
 			 * uwq.waken from other CPUs.
 			 */
-			set_current_state(blocking_state);
+			//set_current_state(blocking_state);
 			if (READ_ONCE(ctx->released) ||
 			    (return_to_userland ? signal_pending(current) :
 			     fatal_signal_pending(current)))
