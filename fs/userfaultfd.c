@@ -267,7 +267,7 @@ static inline bool userfaultfd_huge_must_wait(struct userfaultfd_ctx *ctx,
 #endif /* CONFIG_HUGETLB_PAGE */
 
 /*
- * Verify the pagetables are still not ok after having reigstered into
+ * Verify the pagetables are still not ok after having registered into
  * the fault_pending_wqh to avoid userland having to UFFDIO_WAKE any
  * userfault that has already been resolved, if userfaultfd_read and
  * UFFDIO_COPY|ZEROPAGE are being run simultaneously on two different
@@ -513,8 +513,7 @@ vm_fault_t handle_userfault(struct vm_fault *vmf, unsigned long reason)
 			 * uwq.waken from other CPUs.
 			 */
 			set_current_state(blocking_state);
-			if (READ_ONCE(uwq.waken) ||
-			    READ_ONCE(ctx->released) ||
+			if (READ_ONCE(ctx->released) ||
 			    (return_to_userland ? signal_pending(current) :
 			     fatal_signal_pending(current)))
 				break;
