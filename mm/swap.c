@@ -281,8 +281,7 @@ static void __activate_page(struct page *page, struct lruvec *lruvec,
 
 		del_page_from_lru_list(page, lruvec, lru);
 		SetPageActive(page);
-		lru += LRU_ACTIVE;
-		add_page_to_lru_list(page, lruvec, lru);
+		add_page_to_lru_list(page, lruvec, lru + LRU_ACTIVE);
 		trace_mm_lru_activate(page);
 
 		__count_vm_event(PGACTIVATE);
