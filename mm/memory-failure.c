@@ -1364,7 +1364,7 @@ int memory_failure(unsigned long pfn, int flags)
 		return 0;
 	}
 
-	if (!PageTransTail(p) && !PageLRU(p))
+	if (!PageLRU(p))
 		goto identify_page_state;
 
 	/*
