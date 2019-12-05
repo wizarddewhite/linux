@@ -164,6 +164,17 @@ int after_bootmem __ro_after_init;
 
 early_param_on_off("gbpages", "nogbpages", direct_gbpages, CONFIG_X86_DIRECT_GBPAGES);
 
+#ifdef CONFIG_X86_32
+#define NR_RANGE_MR 3
+#else
+#define NR_RANGE_MR 5
+#endif
+
+struct mapinfo {
+	unsigned int	mask;
+	unsigned int	size;
+};
+
 struct map_range {
 	unsigned long	start;
 	unsigned long	end;
@@ -252,62 +263,6 @@ static void setup_pcid(void)
 	}
 }
 
-#ifdef CONFIG_X86_32
-#define NR_RANGE_MR 3
-#else /* CONFIG_X86_64 */
-#define NR_RANGE_MR 5
-#endif
-
-static int __meminit save_mr(struct map_range *mr, int nr_range,
-			     unsigned long start, unsigned long end,
-			     unsigned long page_size_mask)
-{
-	if (start_pfn < end_pfn) {
-		if (nr_range >= NR_RANGE_MR)
-			panic("run out of range for init_memory_mapping\n");
-		mr[nr_range].start = start_pfn;
-		mr[nr_range].end   = end_pfn;
-		mr[nr_range].page_size_mask = page_size_mask;
-		nr_range++;
-	}
-
-	return nr_range;
-}
-
-/*
- * adjust the page_size_mask for small range to go with
- *	big page size instead small one if nearby are ram too.
- */
-static void __ref adjust_range_page_size_mask(struct map_range *mr,
-							 int nr_range)
-{
-	int i;
-
-	for (i = 0; i < nr_range; i++) {
-		if ((page_size_mask & (1U<<PG_LEVEL_2M)) &&
-		    !(mr[i].page_size_mask & (1U<<PG_LEVEL_2M))) {
-			unsigned long start = round_down(mr[i].start, PMD_SIZE);
-			unsigned long end = round_up(mr[i].end, PMD_SIZE);
-
-#ifdef CONFIG_X86_32
-			if ((end >> PAGE_SHIFT) > max_low_pfn)
-				continue;
-#endif
-
-			if (memblock_is_region_memory(start, end - start))
-				mr[i].page_size_mask |= 1U<<PG_LEVEL_2M;
-		}
-		if ((page_size_mask & (1U<<PG_LEVEL_1G)) &&
-		    !(mr[i].page_size_mask & (1U<<PG_LEVEL_1G))) {
-			unsigned long start = round_down(mr[i].start, PUD_SIZE);
-			unsigned long end = round_up(mr[i].end, PUD_SIZE);
-
-			if (memblock_is_region_memory(start, end - start))
-				mr[i].page_size_mask |= 1U<<PG_LEVEL_1G;
-		}
-	}
-}
-
 static void __meminit mr_print(struct map_range *mr, unsigned int maxidx)
 {
 #if defined(CONFIG_X86_32) && !defined(CONFIG_X86_PAE)
@@ -324,99 +279,105 @@ static void __meminit mr_print(struct map_range *mr, unsigned int maxidx)
 	}
 }
 
-static int __meminit split_mem_range(struct map_range *mr,
-				     unsigned long start,
-				     unsigned long end)
+/*
+ * Try to preserve large mappings during bootmem by expanding the current
+ * range to large page mapping of @size and verifying that the result is
+ * within a memory region.
+ */
+static void __meminit mr_expand(struct map_range *mr, unsigned int size)
 {
-	unsigned long addr, limit;
-	int i, nr_range = 0;
+	unsigned long start = round_down(mr->start, size);
+	unsigned long end = round_up(mr->end, size);
 
-	limit = end;
+	if (IS_ENABLED(CONFIG_X86_32) && (end >> PAGE_SHIFT) > max_low_pfn)
+		return;
 
-	/* head if not big page alignment ? */
-	addr = start;
-#ifdef CONFIG_X86_32
-	/*
-	 * Don't use a large page for the first 2/4MB of memory
-	 * because there are often fixed size MTRRs in there
-	 * and overlapping MTRRs into large pages can cause
-	 * slowdowns.
-	 */
-	if (addr == 0)
-		end = PMD_SIZE;
-	else
-		end = round_up(addr, PMD_SIZE);
-#else /* CONFIG_X86_64 */
-	end = round_up(addr, PMD_SIZE);
-#endif
-	if (end > limit)
-		end = limit;
-	if (start < end) {
-		nr_range = save_mr(mr, nr_range, start, end, 0);
-		addr = end;
+	if (memblock_is_region_memory(start, end - start)) {
+		mr->start = start;
+		mr->end = end;
 	}
+}
 
-	/* big page (2M) range */
-	start = round_up(addr, PMD_SIZE);
-#ifdef CONFIG_X86_32
-	end = round_down(limit, PMD_SIZE);
-#else /* CONFIG_X86_64 */
-	end = round_up(addr, PUD_SIZE);
-	if (end > round_down(limit, PMD_SIZE))
-		end = round_down(limit, PMD_SIZE);
-#endif
+static bool __meminit mr_try_map(struct map_range *mr, const struct mapinfo *mi)
+{
+	unsigned long len;
 
-	if (start < end) {
-		nr_range = save_mr(mr, nr_range, start, end,
-				page_size_mask & (1U<<PG_LEVEL_2M));
-		addr = end;
-	}
-
-#ifdef CONFIG_X86_64
-	/* big page (1G) range */
-	start = round_up(addr, PUD_SIZE);
-	end = round_down(limit, PUD_SIZE);
-	if (start < end) {
-		nr_range = save_mr(mr, nr_range, start, end,
-				page_size_mask &
-				 ((1U<<PG_LEVEL_2M)|(1U<<PG_LEVEL_1G)));
-		addr = end;
-	}
-
-	/* tail is not big page (1G) alignment */
-	start = round_up(addr, PMD_SIZE);
-	end = round_down(limit, PMD_SIZE);
-	if (start < end) {
-		nr_range = save_mr(mr, nr_range, start, end,
-				page_size_mask & (1U<<PG_LEVEL_2M));
-		addr = end;
-	}
-#endif
-
-	/* tail is not big page (2M) alignment */
-	start = addr;
-	end = limit;
-	nr_range = save_mr(mr, nr_range, start, end, 0);
+	/* Check whether the map size is supported. PAGE_SIZE always is. */
+	if (mi->mask && !(mr->page_size_mask & mi->mask))
+		return false;
 
 	if (!after_bootmem)
-		adjust_range_page_size_mask(mr, nr_range);
+		mr_expand(mr, mi->size);
 
-	/* try to merge same page size and continuous */
-	for (i = 0; nr_range > 1 && i < nr_range - 1; i++) {
-		unsigned long old_start;
-		if (mr[i].end != mr[i+1].start ||
-		    mr[i].page_size_mask != mr[i+1].page_size_mask)
-			continue;
-		/* move it */
-		old_start = mr[i].start;
-		memmove(&mr[i], &mr[i+1],
-			(nr_range - 1 - i) * sizeof(struct map_range));
-		mr[i--].start = old_start;
-		nr_range--;
+	if (!IS_ALIGNED(mr->start, mi->size)) {
+		/* Limit the range to the next boundary of this size. */
+		mr->end = min_t(unsigned long, mr->end,
+				round_up(mr->start, mi->size));
+		return false;
 	}
 
-	mr_print(mr, nr_range);
-	return nr_range;
+	if (!IS_ALIGNED(mr->end, mi->size)) {
+		/* Try to fit as much as possible */
+		len = round_down(mr->end - mr->start, mi->size);
+		if (!len)
+			return false;
+		mr->end = mr->start + len;
+	}
+
+	/* Store the effective page size mask */
+	mr->page_size_mask = mi->mask;
+	return true;
+}
+
+static void __meminit mr_setup(struct map_range *mr, unsigned long start,
+			       unsigned long end)
+{
+	/*
+	 * On 32bit the first 2/4MB are often covered by fixed size MTRRs.
+	 * Overlapping MTRRs on large pages can cause slowdowns. Force 4k
+	 * mappings.
+	 */
+	if (IS_ENABLED(CONFIG_X86_32) && start < PMD_SIZE) {
+		mr->page_size_mask = 0;
+		mr->end = min_t(unsigned long, end, PMD_SIZE);
+	} else {
+		/* Set the possible mapping sizes and allow full range. */
+		mr->page_size_mask = page_size_mask;
+		mr->end = end;
+	}
+	mr->start = start;
+}
+
+static int __meminit split_mem_range(struct map_range *mr, unsigned long start,
+				     unsigned long end)
+{
+	static const struct mapinfo mapinfos[] = {
+#ifdef CONFIG_X86_64
+		{ .mask = 1U << PG_LEVEL_1G, .size = PUD_SIZE },
+#endif
+		{ .mask = 1U << PG_LEVEL_2M, .size = PMD_SIZE },
+		{ .mask = 0, .size = PAGE_SIZE },
+	};
+	const struct mapinfo *mi;
+	struct map_range *curmr;
+	unsigned long addr;
+	int idx;
+
+	for (idx = 0, addr = start, curmr = mr; addr < end; idx++, curmr++) {
+		BUG_ON(idx == NR_RANGE_MR);
+
+		mr_setup(curmr, addr, end);
+
+		/* Try map sizes top down. PAGE_SIZE will always succeed. */
+		for (mi = mapinfos; !mr_try_map(curmr, mi); mi++)
+			;
+
+		/* Get the start address for the next range */
+		addr = curmr->end;
+	}
+
+	mr_print(mr, idx);
+	return idx;
 }
 
 struct range pfn_mapped[E820_MAX_ENTRIES];
