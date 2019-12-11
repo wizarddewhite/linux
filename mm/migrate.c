@@ -47,6 +47,7 @@
 #include <linux/page_owner.h>
 #include <linux/sched/mm.h>
 #include <linux/ptrace.h>
+#include <linux/sched/sysctl.h>
 
 #include <asm/tlbflush.h>
 
@@ -1083,6 +1084,12 @@ static int __unmap_and_move(new_page_t get_new_page,
 		try_to_unmap(page,
 			TTU_MIGRATION|TTU_IGNORE_MLOCK|TTU_IGNORE_ACCESS);
 		page_was_mapped = 1;
+		/* Clean MADV_FREE page, discard instead of migrate */
+		if (!PageTransHuge(page) && PageAnon(page) &&
+		    !PageSwapBacked(page) && !PageDirty(page)) {
+			rc = MIGRATEPAGE_DISCARD;
+			goto out_unlock;
+		}
 	}
 
 	if (!page_mapped(page))
@@ -1316,7 +1323,7 @@ out:
 	 * isolation. Otherwise, restore the page to right list unless
 	 * we want to retry.
 	 */
-	if (rc == MIGRATEPAGE_SUCCESS) {
+	if (rc == MIGRATEPAGE_SUCCESS || rc == MIGRATEPAGE_DISCARD) {
 		put_page(page);
 		if (m_detail->reason == MR_MEMORY_FAILURE) {
 			/*
@@ -1545,6 +1552,7 @@ retry:
 				retry++;
 				break;
 			case MIGRATEPAGE_SUCCESS:
+			case MIGRATEPAGE_DISCARD:
 				nr_succeeded++;
 				break;
 			default:
@@ -1939,8 +1947,7 @@ COMPAT_SYSCALL_DEFINE6(move_pages, pid_t, pid, compat_ulong_t, nr_pages,
  * Returns true if this is a safe migration target node for misplaced NUMA
  * pages. Currently it only checks the watermarks which crude
  */
-static bool migrate_balanced_pgdat(struct pglist_data *pgdat,
-				   unsigned long nr_migrate_pages)
+static bool migrate_balanced_pgdat(struct pglist_data *pgdat, int order)
 {
 	int z;
 
@@ -1951,27 +1958,32 @@ static bool migrate_balanced_pgdat(struct pglist_data *pgdat,
 			continue;
 
 		/* Avoid waking kswapd by allocating pages_to_migrate pages. */
-		if (!zone_watermark_ok(zone, 0,
-				       high_wmark_pages(zone) +
-				       nr_migrate_pages,
-				       0, 0))
-			continue;
-		return true;
+		if (zone_watermark_ok(zone, order, high_wmark_pages(zone),
+				      ZONE_MOVABLE, 0))
+			return true;
 	}
 	return false;
 }
 
 static struct page *alloc_misplaced_dst_page(struct page *page,
-					   unsigned long data)
+					     unsigned long nid)
 {
-	int nid = (int) data;
 	struct page *newpage;
 
-	newpage = __alloc_pages_node(nid,
-					 (GFP_HIGHUSER_MOVABLE |
-					  __GFP_THISNODE | __GFP_NOMEMALLOC |
-					  __GFP_NORETRY | __GFP_NOWARN) &
-					 ~__GFP_RECLAIM, 0);
+	if (PageTransHuge(page)) {
+		newpage = alloc_pages_node(
+			nid,
+			(GFP_TRANSHUGE | __GFP_THISNODE | __GFP_NOMEMALLOC |
+			 __GFP_NORETRY | __GFP_NOWARN) & ~__GFP_RECLAIM,
+			HPAGE_PMD_ORDER);
+		if (newpage)
+			prep_transhuge_page(newpage);
+	} else
+		newpage = __alloc_pages_node(
+			nid,
+			(GFP_HIGHUSER_MOVABLE | __GFP_THISNODE |
+			 __GFP_NOMEMALLOC | __GFP_NORETRY | __GFP_NOWARN) &
+			~__GFP_RECLAIM, 0);
 
 	return newpage;
 }
@@ -1983,8 +1995,19 @@ static int numamigrate_isolate_page(pg_data_t *pgdat, struct page *page)
 	VM_BUG_ON_PAGE(compound_order(page) && !PageTransHuge(page), page);
 
 	/* Avoid migrating to a node that is nearly full */
-	if (!migrate_balanced_pgdat(pgdat, 1UL << compound_order(page)))
+	if (!migrate_balanced_pgdat(pgdat, compound_order(page))) {
+		if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING) {
+			int z;
+
+			for (z = pgdat->nr_zones - 1; z >= 0; z--) {
+				if (populated_zone(pgdat->node_zones + z))
+					break;
+			}
+			wakeup_kswapd(pgdat->node_zones + z,
+				      0, compound_order(page), ZONE_MOVABLE);
+		}
 		return 0;
+	}
 
 	if (isolate_lru_page(page))
 		return 0;
@@ -2038,7 +2061,7 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 	 * Don't migrate file pages that are mapped in multiple processes
 	 * with execute permissions as they are probably shared libraries.
 	 */
-	if (page_mapcount(page) != 1 && page_is_file_cache(page) &&
+	if (vma && page_mapcount(page) != 1 && page_is_file_cache(page) &&
 	    (vma->vm_flags & VM_EXEC))
 		goto out;
 
@@ -2054,7 +2077,17 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 		goto out;
 
 	list_add(&page->lru, &migratepages);
-	m_detail.reason = MR_NUMA_MISPLACED;
+	/* Promote from slow memory node to fast memory node */
+	if (next_migration_node(node) != -1 &&
+	    next_promotion_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_PROMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_PROMOTE;
+	} else if (next_promotion_node(node) != -1 &&
+		   next_migration_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_DEMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_DEMOTE;
+	} else
+		m_detail.reason = MR_NUMA_MISPLACED;
 	nr_remaining = migrate_pages(&migratepages, alloc_misplaced_dst_page,
 				     NULL, node, MIGRATE_ASYNC, &m_detail);
 	if (nr_remaining) {
@@ -2094,18 +2127,16 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 	int page_lru = page_is_file_cache(page);
 	unsigned long start = address & HPAGE_PMD_MASK;
 
+	isolated = numamigrate_isolate_page(pgdat, page);
+	if (!isolated)
+		goto out_fail;
+
 	new_page = alloc_pages_node(node,
 		(GFP_TRANSHUGE_LIGHT | __GFP_THISNODE),
 		HPAGE_PMD_ORDER);
 	if (!new_page)
 		goto out_fail;
 	prep_transhuge_page(new_page);
-
-	isolated = numamigrate_isolate_page(pgdat, page);
-	if (!isolated) {
-		put_page(new_page);
-		goto out_fail;
-	}
 
 	/* Prepare a page as a migration target */
 	__SetPageLocked(new_page);
@@ -2133,12 +2164,6 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 
 		unlock_page(new_page);
 		put_page(new_page);		/* Free it */
-
-		/* Retake the callers reference and putback on LRU */
-		get_page(page);
-		putback_lru_page(page);
-		mod_node_page_state(page_pgdat(page),
-			 NR_ISOLATED_ANON + page_lru, -HPAGE_PMD_NR);
 
 		goto out_unlock;
 	}
@@ -2180,6 +2205,8 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 	get_page(new_page);
 	putback_lru_page(new_page);
 
+	inc_hmem_state(MR_HMEM_AUTONUMA_PROMOTE, page, new_page);
+
 	unlock_page(new_page);
 	unlock_page(page);
 	put_page(page);			/* Drop the rmap reference */
@@ -2204,6 +2231,13 @@ out_fail:
 	spin_unlock(ptl);
 
 out_unlock:
+	if (isolated) {
+		/* Retake the callers reference and putback on LRU */
+		get_page(page);
+		putback_lru_page(page);
+		mod_node_page_state(page_pgdat(page),
+			 NR_ISOLATED_ANON + page_lru, -HPAGE_PMD_NR);
+	}
 	unlock_page(page);
 	put_page(page);
 	return 0;

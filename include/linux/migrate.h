@@ -14,8 +14,10 @@ typedef void free_page_t(struct page *page, unsigned long private);
  * Return values from addresss_space_operations.migratepage():
  * - negative errno on page migration failure;
  * - zero on page migration success;
+ * - 1 on page discarded;
  */
 #define MIGRATEPAGE_SUCCESS		0
+#define MIGRATEPAGE_DISCARD		1
 
 enum migrate_reason {
 	MR_COMPACTION,
@@ -34,6 +36,8 @@ enum migrate_hmem_reason {
 	MR_HMEM_UNKNOWN,
 	MR_HMEM_RECLAIM_DEMOTE,
 	MR_HMEM_RECLAIM_PROMOTE,
+	MR_HMEM_AUTONUMA_PROMOTE,
+	MR_HMEM_AUTONUMA_DEMOTE,
 	MR_HMEM_NR_REASONS
 };
 

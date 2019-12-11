@@ -198,6 +198,7 @@ static inline int next_promotion_node(int current_node)
 {
 	return -1;
 }
+
 #endif
 
 #define to_node(device) container_of(device, struct node, dev)

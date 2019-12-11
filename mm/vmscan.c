@@ -57,6 +57,7 @@
 
 #include <linux/swapops.h>
 #include <linux/balloon_compaction.h>
+#include <linux/sched/sysctl.h>
 
 #include "internal.h"
 
@@ -1276,7 +1277,8 @@ static unsigned long shrink_page_list(struct list_head *page_list,
 			    !split_huge_page_to_list(page, page_list))
 				rc = migrate_demote_mapping(page);
 
-			if (rc == MIGRATEPAGE_SUCCESS) {
+			if (rc == MIGRATEPAGE_SUCCESS ||
+			    rc == MIGRATEPAGE_DISCARD) {
 				unlock_page(page);
 				if (likely(put_page_testzero(page)))
 					goto free_it;
@@ -3336,8 +3338,11 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int classzone_idx)
 {
 	int i;
 	unsigned long mark = -1;
+	unsigned long promote_ratelimit;
 	struct zone *zone;
 
+	promote_ratelimit = sysctl_numa_balancing_rate_limit <<
+		(20 - PAGE_SHIFT);
 	/*
 	 * Check watermarks bottom-up as lower zones are more likely to
 	 * meet watermarks.
@@ -3349,6 +3354,9 @@ static bool pgdat_balanced(pg_data_t *pgdat, int order, int classzone_idx)
 			continue;
 
 		mark = high_wmark_pages(zone);
+		if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING &&
+		    next_migration_node(pgdat->node_id) != -1)
+			mark += promote_ratelimit;
 		if (zone_watermark_ok_safe(zone, order, mark, classzone_idx))
 			return true;
 	}
@@ -3752,8 +3760,23 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 */
 		set_pgdat_percpu_threshold(pgdat, calculate_normal_threshold);
 
-		if (!kthread_should_stop())
-			schedule();
+		if (!kthread_should_stop()) {
+			/*
+			 * In memory tiering mode, try harder to
+			 * recover from kswapd failures, because
+			 * direct reclaiming may be not triggered.
+			 */
+			if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING &&
+			    next_migration_node(pgdat->node_id) != -1 &&
+			    pgdat->kswapd_failures >= MAX_RECLAIM_RETRIES) {
+				remaining = schedule_timeout(10 * HZ);
+				if (!remaining) {
+					pgdat->kswapd_classzone_idx = ZONE_MOVABLE;
+					pgdat->kswapd_order = 0;
+				}
+			} else
+				schedule();
+		}
 
 		set_pgdat_percpu_threshold(pgdat, calculate_pressure_threshold);
 	} else {
