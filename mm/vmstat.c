@@ -1162,6 +1162,8 @@ const char * const vmstat_text[] = {
 	"hmem_autonuma_promote_dst",
 	"hmem_autonuma_demote_src",
 	"hmem_autonuma_demote_dst",
+	"hmem_swapcache_promote_src",
+	"hmem_swapcache_promote_dst",
 
 	/* enum numa_stat_item counters */
 #ifdef CONFIG_NUMA
