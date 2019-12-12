@@ -368,13 +368,26 @@ static void __lru_cache_activate_page(struct page *page)
  *
  * When a newly allocated page is not yet visible, so safe for non-atomic ops,
  * __SetPageReferenced(page) may be substituted for mark_page_accessed(page).
+ * Return value:
+ *  PAGE_MIGRATION_VIABLE - Page migration is viable.
+ *  PAGE_MIGRATION_FUTILE - Page migration is futile.
  */
-void mark_page_accessed(struct page *page)
+int mark_page_accessed(struct page *page)
 {
-	page = compound_head(page);
-	if (!PageActive(page) && !PageUnevictable(page) &&
-			PageReferenced(page)) {
+	int ret = PAGE_MIGRATION_FUTILE;
 
+	page = compound_head(page);
+	inc_node_page_state(page, NR_ACCESSED);
+
+	if (!PageReferenced(page)) {
+		SetPageReferenced(page);
+	} else if (PageUnevictable(page)) {
+		/*
+		 * Unevictable pages are on the "LRU_UNEVICTABLE" list. But,
+		 * this list is never rotated or maintained, so marking an
+		 * evictable page accessed has no effect.
+		 */
+	} else if (!PageActive(page)) {
 		/*
 		 * If the page is on the LRU, queue it for activation via
 		 * activate_page_pvecs. Otherwise, assume the page is on a
@@ -388,11 +401,13 @@ void mark_page_accessed(struct page *page)
 		ClearPageReferenced(page);
 		if (page_is_file_cache(page))
 			workingset_activation(page);
-	} else if (!PageReferenced(page)) {
-		SetPageReferenced(page);
-	}
+	} else
+		ret = PAGE_MIGRATION_VIABLE;
+
 	if (page_is_idle(page))
 		clear_page_idle(page);
+
+	return ret;
 }
 EXPORT_SYMBOL(mark_page_accessed);
 
