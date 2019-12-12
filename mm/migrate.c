@@ -2194,10 +2194,9 @@ bool pmd_trans_migrating(pmd_t pmd)
  * node. Caller is expected to have an elevated reference count on
  * the page that will be dropped by this function before returning.
  */
-int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
-			   int node)
+int _migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+			   int node, struct migrate_detail *m_detail)
 {
-	struct migrate_detail m_detail = {};
 	pg_data_t *pgdat = NODE_DATA(node);
 	int isolated;
 	int nr_remaining;
@@ -2226,19 +2225,8 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 	}
 
 	list_add(&page->lru, &migratepages);
-	/* Promote from slow memory node to fast memory node */
-	if (next_migration_node(node) != -1 &&
-	    next_promotion_node(page_to_nid(page)) != -1) {
-		m_detail.reason = MR_PROMOTION;
-		m_detail.h_reason = MR_HMEM_AUTONUMA_PROMOTE;
-	} else if (next_promotion_node(node) != -1 &&
-		   next_migration_node(page_to_nid(page)) != -1) {
-		m_detail.reason = MR_DEMOTION;
-		m_detail.h_reason = MR_HMEM_AUTONUMA_DEMOTE;
-	} else
-		m_detail.reason = MR_NUMA_MISPLACED;
 	nr_remaining = migrate_pages(&migratepages, alloc_misplaced_dst_page,
-				     NULL, node, MIGRATE_ASYNC, &m_detail);
+				     NULL, node, MIGRATE_ASYNC, m_detail);
 	if (nr_remaining) {
 		if (!list_empty(&migratepages)) {
 			list_del(&page->lru);
@@ -2256,6 +2244,29 @@ out:
 	put_page(page);
 	return 0;
 }
+
+int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+			   int node)
+{
+	struct migrate_detail m_detail = {};
+	int ret;
+
+	if (next_migration_node(node) != -1 &&
+	    next_promotion_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_PROMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_PROMOTE;
+	} else if (next_promotion_node(node) != -1 &&
+		   next_migration_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_DEMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_DEMOTE;
+	} else {
+		m_detail.reason = MR_NUMA_MISPLACED;
+	}
+
+	ret = _migrate_misplaced_page(page, vma, node, &m_detail);
+	return ret;
+}
+
 #endif /* CONFIG_NUMA_BALANCING */
 
 #if defined(CONFIG_NUMA_BALANCING) && defined(CONFIG_TRANSPARENT_HUGEPAGE)
