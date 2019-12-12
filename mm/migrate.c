@@ -406,6 +406,9 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	int dirty;
 	int expected_count = expected_page_refs(mapping, page) + extra_count;
 
+	if (page_count(page) != expected_count)
+		count_vm_events(PGMIGRATE_REFCOUNT_FAIL, hpage_nr_pages(page));
+
 	if (!mapping) {
 		/* Anonymous page without mapping */
 		if (page_count(page) != expected_count)
@@ -1685,6 +1688,9 @@ retry:
 					}
 				}
 				nr_failed++;
+
+				count_vm_events(PGMIGRATE_NOMEM_FAIL,
+						hpage_nr_pages(page));
 				goto out;
 			case -EAGAIN:
 				retry++;
@@ -2134,6 +2140,8 @@ static int numamigrate_isolate_page(pg_data_t *pgdat, struct page *page)
 
 	/* Avoid migrating to a node that is nearly full */
 	if (!migrate_balanced_pgdat(pgdat, compound_order(page))) {
+		count_vm_events(PGMIGRATE_DST_NODE_FULL_FAIL,
+				hpage_nr_pages(page));
 		if (sysctl_numa_balancing_mode & NUMA_BALANCING_MEMORY_TIERING) {
 			int z;
 
@@ -2186,10 +2194,9 @@ bool pmd_trans_migrating(pmd_t pmd)
  * node. Caller is expected to have an elevated reference count on
  * the page that will be dropped by this function before returning.
  */
-int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
-			   int node)
+int _migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+			   int node, struct migrate_detail *m_detail)
 {
-	struct migrate_detail m_detail = {};
 	pg_data_t *pgdat = NODE_DATA(node);
 	int isolated;
 	int nr_remaining;
@@ -2211,23 +2218,15 @@ int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
 		goto out;
 
 	isolated = numamigrate_isolate_page(pgdat, page);
-	if (!isolated)
+	if (!isolated) {
+		count_vm_events(PGMIGRATE_NUMA_ISOLATE_FAIL,
+					hpage_nr_pages(page));
 		goto out;
+	}
 
 	list_add(&page->lru, &migratepages);
-	/* Promote from slow memory node to fast memory node */
-	if (next_migration_node(node) != -1 &&
-	    next_promotion_node(page_to_nid(page)) != -1) {
-		m_detail.reason = MR_PROMOTION;
-		m_detail.h_reason = MR_HMEM_AUTONUMA_PROMOTE;
-	} else if (next_promotion_node(node) != -1 &&
-		   next_migration_node(page_to_nid(page)) != -1) {
-		m_detail.reason = MR_DEMOTION;
-		m_detail.h_reason = MR_HMEM_AUTONUMA_DEMOTE;
-	} else
-		m_detail.reason = MR_NUMA_MISPLACED;
 	nr_remaining = migrate_pages(&migratepages, alloc_misplaced_dst_page,
-				     NULL, node, MIGRATE_ASYNC, &m_detail);
+				     NULL, node, MIGRATE_ASYNC, m_detail);
 	if (nr_remaining) {
 		if (!list_empty(&migratepages)) {
 			list_del(&page->lru);
@@ -2245,6 +2244,29 @@ out:
 	put_page(page);
 	return 0;
 }
+
+int migrate_misplaced_page(struct page *page, struct vm_area_struct *vma,
+			   int node)
+{
+	struct migrate_detail m_detail = {};
+	int ret;
+
+	if (next_migration_node(node) != -1 &&
+	    next_promotion_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_PROMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_PROMOTE;
+	} else if (next_promotion_node(node) != -1 &&
+		   next_migration_node(page_to_nid(page)) != -1) {
+		m_detail.reason = MR_DEMOTION;
+		m_detail.h_reason = MR_HMEM_AUTONUMA_DEMOTE;
+	} else {
+		m_detail.reason = MR_NUMA_MISPLACED;
+	}
+
+	ret = _migrate_misplaced_page(page, vma, node, &m_detail);
+	return ret;
+}
+
 #endif /* CONFIG_NUMA_BALANCING */
 
 #if defined(CONFIG_NUMA_BALANCING) && defined(CONFIG_TRANSPARENT_HUGEPAGE)
@@ -2266,14 +2288,18 @@ int migrate_misplaced_transhuge_page(struct mm_struct *mm,
 	unsigned long start = address & HPAGE_PMD_MASK;
 
 	isolated = numamigrate_isolate_page(pgdat, page);
-	if (!isolated)
+	if (!isolated) {
+		count_vm_events(PGMIGRATE_NUMA_ISOLATE_FAIL, HPAGE_PMD_NR);
 		goto out_fail;
+	}
 
 	new_page = alloc_pages_node(node,
 		(GFP_TRANSHUGE_LIGHT | __GFP_THISNODE),
 		HPAGE_PMD_ORDER);
-	if (!new_page)
+	if (!new_page) {
+		count_vm_events(PGMIGRATE_NOMEM_FAIL, HPAGE_PMD_NR);
 		goto out_fail;
+	}
 	prep_transhuge_page(new_page);
 
 	/* Prepare a page as a migration target */

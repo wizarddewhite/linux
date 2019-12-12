@@ -38,6 +38,7 @@ enum migrate_hmem_reason {
 	MR_HMEM_RECLAIM_PROMOTE,
 	MR_HMEM_AUTONUMA_PROMOTE,
 	MR_HMEM_AUTONUMA_DEMOTE,
+	MR_HMEM_SWAPCACHE_PROMOTE,
 	MR_HMEM_NR_REASONS
 };
 
@@ -168,6 +169,10 @@ static inline void __ClearPageMovable(struct page *page)
 extern bool pmd_trans_migrating(pmd_t pmd);
 extern int migrate_misplaced_page(struct page *page,
 				  struct vm_area_struct *vma, int node);
+extern int _migrate_misplaced_page(struct page *page,
+				struct vm_area_struct *vma,
+				int node, struct migrate_detail *m_detail);
+
 #else
 static inline bool pmd_trans_migrating(pmd_t pmd)
 {
@@ -175,6 +180,13 @@ static inline bool pmd_trans_migrating(pmd_t pmd)
 }
 static inline int migrate_misplaced_page(struct page *page,
 					 struct vm_area_struct *vma, int node)
+{
+	return -EAGAIN; /* can't migrate now */
+}
+
+static inline int _migrate_misplaced_page(struct page *page,
+				struct vm_area_struct *vma,
+				int node, struct migrate_detail *m_detail)
 {
 	return -EAGAIN; /* can't migrate now */
 }

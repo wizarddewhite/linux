@@ -1162,6 +1162,8 @@ const char * const vmstat_text[] = {
 	"hmem_autonuma_promote_dst",
 	"hmem_autonuma_demote_src",
 	"hmem_autonuma_demote_dst",
+	"hmem_swapcache_promote_src",
+	"hmem_swapcache_promote_dst",
 
 	/* enum numa_stat_item counters */
 #ifdef CONFIG_NUMA
@@ -1270,6 +1272,11 @@ const char * const vmstat_text[] = {
 #ifdef CONFIG_MIGRATION
 	"pgmigrate_success",
 	"pgmigrate_fail",
+	"pgmigrate_fail_dst_node_fail",
+	"pgmigrate_fail_numa_isolate_fail",
+	"pgmigrate_fail_nomem_fail",
+	"pgmigrate_fail_refcount_fail",
+	"pgmigrate_success_pagecache_wrflt",
 #endif
 #ifdef CONFIG_COMPACTION
 	"compact_migrate_scanned",

@@ -1759,6 +1759,20 @@ static struct ctl_table vm_table[] = {
 		.proc_handler	= demotion_ratelimit_handler,
 		.extra1		= &neg_one,
 	},
+	{
+		.procname	= "hmem_enable_pagecache_write_fault_promotion",
+		.data		= &hmem_enable_pagecache_write_fault_promotion,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "enable_swapcache_promotion",
+		.data		= &sysctl_enable_swapcache_promotion,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
 #endif
 	{ }
 };
