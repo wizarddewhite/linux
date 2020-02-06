@@ -817,12 +817,8 @@ static struct page * __meminit section_activate(int nid, unsigned long pfn,
 		bitmap_or(subsection_map, map, subsection_map,
 				SUBSECTIONS_PER_SECTION);
 
-	if (rc) {
-		if (usage)
-			ms->usage = NULL;
-		kfree(usage);
+	if (rc)
 		return ERR_PTR(rc);
-	}
 
 	/*
 	 * The early init code does not consider partially populated
