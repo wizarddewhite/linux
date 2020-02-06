@@ -798,6 +798,9 @@ static struct page * __meminit section_activate(int nid, unsigned long pfn,
 	struct page *memmap;
 	int rc = 0;
 
+	if (WARN_ON(!nr_pages))
+		return ERR_PTR(-EINVAL);
+
 	subsection_mask_set(map, pfn, nr_pages);
 
 	if (!ms->usage) {
@@ -808,9 +811,7 @@ static struct page * __meminit section_activate(int nid, unsigned long pfn,
 	}
 	subsection_map = &ms->usage->subsection_map[0];
 
-	if (bitmap_empty(map, SUBSECTIONS_PER_SECTION))
-		rc = -EINVAL;
-	else if (bitmap_intersects(map, subsection_map, SUBSECTIONS_PER_SECTION))
+	if (bitmap_intersects(map, subsection_map, SUBSECTIONS_PER_SECTION))
 		rc = -EEXIST;
 	else
 		bitmap_or(subsection_map, map, subsection_map,
