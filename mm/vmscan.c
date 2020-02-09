@@ -3810,7 +3810,7 @@ static void kswapd_try_to_sleep(pg_data_t *pgdat, int alloc_order, int reclaim_o
 		 * order. The values will either be from a wakeup request or
 		 * the previous request that slept prematurely.
 		 */
-		if (remaining) {
+		if (remaining) { // take this to kswapd?
 			pgdat->kswapd_classzone_idx = kswapd_classzone_idx(pgdat, classzone_idx);
 			pgdat->kswapd_order = max(pgdat->kswapd_order, reclaim_order);
 		}
