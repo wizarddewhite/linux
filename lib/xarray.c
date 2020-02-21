@@ -744,7 +744,7 @@ static void update_node(struct xa_state *xas, struct xa_node *node,
 	node->count += count;
 	node->nr_values += values;
 	XA_NODE_BUG_ON(node, node->count > XA_CHUNK_SIZE);
-	XA_NODE_BUG_ON(node, node->nr_values > XA_CHUNK_SIZE);
+	XA_NODE_BUG_ON(node, node->nr_values > node->count);
 	xas_update(xas, node);
 	if (count < 0)
 		xas_delete_node(xas);
