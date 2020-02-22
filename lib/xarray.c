@@ -652,16 +652,12 @@ static void *xas_create(struct xa_state *xas, bool allow_root)
 		slot = &xa->xa_head;
 	} else if (xas_error(xas)) {
 		return NULL;
-	} else if (node) {
+	} else {
 		unsigned int offset = xas->xa_offset;
 
 		shift = node->shift;
 		entry = xa_entry_locked(xa, node, offset);
 		slot = &node->slots[offset];
-	} else {
-		shift = 0;
-		entry = xa_head_locked(xa);
-		slot = &xa->xa_head;
 	}
 
 	while (shift > order) {
