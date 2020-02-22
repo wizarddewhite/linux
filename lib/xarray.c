@@ -638,6 +638,9 @@ static void *xas_create(struct xa_state *xas, bool allow_root)
 	int shift;
 	unsigned int order = xas->xa_shift;
 
+	if (xas_error(xas))
+		return NULL;
+
 	if (xas_top(node)) {
 		entry = xa_head_locked(xa);
 		xas->xa_node = NULL;
@@ -650,8 +653,6 @@ static void *xas_create(struct xa_state *xas, bool allow_root)
 			shift = XA_CHUNK_SHIFT;
 		entry = xa_head_locked(xa);
 		slot = &xa->xa_head;
-	} else if (xas_error(xas)) {
-		return NULL;
 	} else {
 		unsigned int offset = xas->xa_offset;
 
