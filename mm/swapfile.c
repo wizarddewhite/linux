@@ -729,6 +729,19 @@ static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
 	}
 }
 
+static unsigned long next_offset(struct swap_info_struct *si,
+				unsigned long *offset, unsigned long scan_base)
+{
+	/* only start over when iterating on the upper part */
+	if (++(*offset) > si->highest_bit && *offset > scan_base) {
+		*offset = si->lowest_bit;
+		/* someone has eaten the lower part */
+		if (si->lowest_bit >= scan_base)
+			return scan_base;
+	}
+	return *offset;
+}
+
 static int scan_swap_map_slots(struct swap_info_struct *si,
 			       unsigned char usage, int nr,
 			       swp_entry_t slots[])
@@ -889,7 +902,7 @@ done:
 
 scan:
 	spin_unlock(&si->lock);
-	while (++offset <= si->highest_bit) {
+	while (next_offset(si, &offset, scan_base) != scan_base) {
 		if (!si->swap_map[offset]) {
 			spin_lock(&si->lock);
 			goto checks;
@@ -902,22 +915,6 @@ scan:
 			cond_resched();
 			latency_ration = LATENCY_LIMIT;
 		}
-	}
-	offset = si->lowest_bit;
-	while (offset < scan_base) {
-		if (!si->swap_map[offset]) {
-			spin_lock(&si->lock);
-			goto checks;
-		}
-		if (vm_swap_full() && si->swap_map[offset] == SWAP_HAS_CACHE) {
-			spin_lock(&si->lock);
-			goto checks;
-		}
-		if (unlikely(--latency_ration < 0)) {
-			cond_resched();
-			latency_ration = LATENCY_LIMIT;
-		}
-		offset++;
 	}
 	spin_lock(&si->lock);
 
