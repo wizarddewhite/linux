@@ -3427,8 +3427,6 @@ static int __swap_duplicate(swp_entry_t entry, unsigned char usage)
 
 		if ((count & ~COUNT_CONTINUED) < SWAP_MAP_MAX)
 			count += usage;
-		else if ((count & ~COUNT_CONTINUED) > SWAP_MAP_MAX)
-			err = -EINVAL;
 		else if (swap_count_continued(p, offset, count))
 			count = COUNT_CONTINUED;
 		else
