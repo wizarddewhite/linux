@@ -107,7 +107,7 @@ extern pmd_t *mm_find_pmd(struct mm_struct *mm, unsigned long address);
  *
  * zonelist, preferred_zone and classzone_idx are set first in
  * __alloc_pages_nodemask() for the fast path, and might be later changed
- * in __alloc_pages_slowpath(). All other functions pass the whole strucure
+ * in __alloc_pages_slowpath(). All other functions pass the whole structure
  * by a const pointer.
  */
 struct alloc_context {
