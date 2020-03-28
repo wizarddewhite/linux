@@ -829,9 +829,9 @@ checks:
 		}
 	}
 	if (!(si->flags & SWP_WRITEOK))
-		goto no_page;
+		goto done;
 	if (!si->highest_bit)
-		goto no_page;
+		goto done;
 	if (offset > si->highest_bit)
 		scan_base = offset = si->lowest_bit;
 
@@ -917,10 +917,7 @@ scan:
 		}
 	}
 	spin_lock(&si->lock);
-
-no_page:
-	si->flags -= SWP_SCANNING;
-	return n_ret;
+	goto done;
 }
 
 static int swap_alloc_cluster(struct swap_info_struct *si, swp_entry_t *slot)
