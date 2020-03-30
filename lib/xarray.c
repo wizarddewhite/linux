@@ -559,9 +559,10 @@ static int xas_expand(struct xa_state *xas, void *head)
 	unsigned int shift = 0;
 	unsigned long max = xas_max(xas);
 
-	if (!head) {
+	if (!head)
 		return roundup(fls_long(max), XA_CHUNK_SHIFT);
-	} else if (xa_is_node(head)) {
+
+	if (xa_is_node(head)) {
 		node = xa_to_node(head);
 		shift = node->shift + XA_CHUNK_SHIFT;
 	}
