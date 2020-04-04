@@ -1489,10 +1489,9 @@ void __rcu **idr_get_free(struct radix_tree_root *root,
 		return ERR_PTR(-ENOSPC);
 
 	if (start > maxindex) {
-		int error = radix_tree_extend(root, gfp, start, shift);
-		if (error < 0)
-			return ERR_PTR(error);
-		shift = error;
+		shift = radix_tree_extend(root, gfp, start, shift);
+		if (shift < 0)
+			return ERR_PTR(shift);
 		child = rcu_dereference_raw(root->xa_head);
 	}
 	if (start == 0 && shift == 0)
