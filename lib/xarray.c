@@ -1247,6 +1247,8 @@ void *xas_find_conflict(struct xa_state *xas)
 		while (xa_is_node(curr)) {
 			struct xa_node *node = xa_to_node(curr);
 			curr = xas_descend(xas, node);
+			if (node->shift == 0)
+				break;
 		}
 		if (curr)
 			return curr;
