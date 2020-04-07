@@ -412,9 +412,7 @@ static int radix_tree_extend(struct radix_tree_root *root, gfp_t gfp,
 	int tag;
 
 	/* Figure out what the shift should be.  */
-	maxshift = shift;
-	while (index > shift_maxindex(maxshift))
-		maxshift += RADIX_TREE_MAP_SHIFT;
+	maxshift = roundup(fls_long(index), RADIX_TREE_MAP_SHIFT);
 
 	entry = rcu_dereference_raw(root->xa_head);
 	if (!entry && (!is_idr(root) || root_tag_get(root, IDR_FREE)))
@@ -455,9 +453,9 @@ static int radix_tree_extend(struct radix_tree_root *root, gfp_t gfp,
 		entry = node_to_entry(node);
 		rcu_assign_pointer(root->xa_head, entry);
 		shift += RADIX_TREE_MAP_SHIFT;
-	} while (shift <= maxshift);
+	} while (shift < maxshift);
 out:
-	return maxshift + RADIX_TREE_MAP_SHIFT;
+	return maxshift;
 }
 
 /**
