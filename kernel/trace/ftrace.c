@@ -370,7 +370,7 @@ static void ftrace_update_pid_func(void)
 	if (ftrace_trace_function == ftrace_stub)
 		return;
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		if (op->flags & FTRACE_OPS_FL_PID) {
 			op->func = ftrace_pids_enabled(op) ?
 				ftrace_pid_func : op->saved_func;
@@ -1058,7 +1058,7 @@ struct ftrace_ops *ftrace_ops_trampoline(unsigned long addr)
 	 */
 	preempt_disable_notrace();
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		/*
 		 * This is to check for dynamically allocated trampolines.
 		 * Trampolines that are in kernel text will have
@@ -1827,7 +1827,7 @@ static void ftrace_hash_rec_update_modify(struct ftrace_ops *ops,
 	 * If the ops shares the global_ops hash, then we need to update
 	 * all ops that are enabled and use this hash.
 	 */
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		/* Already done */
 		if (op == ops)
 			continue;
@@ -2232,7 +2232,7 @@ ftrace_find_tramp_ops_any(struct dyn_ftrace *rec)
 	struct ftrace_ops *op;
 	unsigned long ip = rec->ip;
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 
 		if (!op->trampoline)
 			continue;
@@ -2297,7 +2297,7 @@ ftrace_find_tramp_ops_curr(struct dyn_ftrace *rec)
 	 * for single ops connected), then an ops that is not being
 	 * modified also needs to be checked.
 	 */
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 
 		if (!op->trampoline)
 			continue;
@@ -2338,7 +2338,7 @@ ftrace_find_tramp_ops_new(struct dyn_ftrace *rec)
 	struct ftrace_ops *op;
 	unsigned long ip = rec->ip;
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		/* pass rec in as regs to have non-NULL val */
 		if (hash_contains_ip(ip, op->func_hash))
 			return op;
@@ -4058,7 +4058,7 @@ static void ftrace_ops_update_code(struct ftrace_ops *ops,
 	if (ops->func_hash != &global_ops.local_hash)
 		return;
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		if (op->func_hash == &global_ops.local_hash &&
 		    op->flags & FTRACE_OPS_FL_ENABLED) {
 			ftrace_run_modify_code(op, FTRACE_UPDATE_CALLS, old_hash);
@@ -6928,7 +6928,7 @@ __ftrace_ops_list_func(unsigned long ip, unsigned long parent_ip,
 	 */
 	preempt_disable_notrace();
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		/* Stub functions don't need to be called nor tested */
 		if (op->flags & FTRACE_OPS_FL_STUB)
 			continue;
@@ -7522,7 +7522,7 @@ static bool is_permanent_ops_registered(void)
 {
 	struct ftrace_ops *op;
 
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		if (op->flags & FTRACE_OPS_FL_PERMANENT)
 			return true;
 	} while_for_each_ftrace_op(op);

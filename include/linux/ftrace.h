@@ -225,8 +225,8 @@ extern struct ftrace_ops ftrace_list_end;
  *
  * Silly Alpha and silly pointer-speculation compiler optimizations!
  */
-#define do_for_each_ftrace_op(op, list)			\
-	op = rcu_dereference_raw_check(list);			\
+#define do_for_each_ftrace_op(op)			\
+	op = rcu_dereference_raw_check(ftrace_ops_list);\
 	do
 
 /*

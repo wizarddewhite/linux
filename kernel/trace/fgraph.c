@@ -470,7 +470,7 @@ void update_function_graph_func(void)
 	 * the graph tracing needs to test if its the function
 	 * it should call.
 	 */
-	do_for_each_ftrace_op(op, ftrace_ops_list) {
+	do_for_each_ftrace_op(op) {
 		if (op != &global_ops && op != &graph_ops &&
 		    op != &ftrace_list_end) {
 			do_test = true;

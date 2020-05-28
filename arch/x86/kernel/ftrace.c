@@ -440,7 +440,7 @@ void set_ftrace_ops_ro(void)
 	unsigned long npages;
 	unsigned long size;
 
-	do_for_each_ftrace_op(ops, ftrace_ops_list) {
+	do_for_each_ftrace_op(ops) {
 		if (!(ops->flags & FTRACE_OPS_FL_ALLOC_TRAMP))
 			continue;
 
