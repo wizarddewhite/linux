@@ -17,7 +17,7 @@
  *
  * #define TRACE_INCLUDE_FILE trace-events-sample
  *
- * As we do an the bottom of this file.
+ * As we do at the bottom of this file.
  *
  * Notice that TRACE_SYSTEM should be defined outside of #if
  * protection, just like TRACE_INCLUDE_FILE.
