@@ -750,7 +750,7 @@ int __vma_adjust(struct vm_area_struct *vma, unsigned long start,
 	long adjust_next = 0;
 	int remove_next = 0;
 
-	if (next && !insert) {
+	if (next && expand) {
 		struct vm_area_struct *exporter = NULL, *importer = NULL;
 
 		if (end >= next->vm_end) {
