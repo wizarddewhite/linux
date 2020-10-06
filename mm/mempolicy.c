@@ -1835,6 +1835,8 @@ bool vma_policy_mof(struct vm_area_struct *vma)
 		bool ret = false;
 
 		pol = vma->vm_ops->get_policy(vma, vma->vm_start);
+		/* MPOL_F_MOF is set for preferred policy, would this always
+		 * trigger numa balance even no change? */
 		if (pol && (pol->flags & MPOL_F_MOF))
 			ret = true;
 		mpol_cond_put(pol);
