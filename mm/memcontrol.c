@@ -2796,7 +2796,7 @@ retry:
 	 * couldn't make any progress.
 	 */
 	oom_status = mem_cgroup_oom(mem_over_limit, gfp_mask,
-		       get_order(nr_pages * PAGE_SIZE));
+		       get_count_order(nr_pages));
 	switch (oom_status) {
 	case OOM_SUCCESS:
 		nr_retries = MAX_RECLAIM_RETRIES;
