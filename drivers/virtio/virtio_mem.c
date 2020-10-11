@@ -363,6 +363,22 @@ static int virtio_mem_mb_first_unplugged_sb(struct virtio_mem *vm,
 	       bit;
 }
 
+static int virtio_mem_mb_first_unplugged_range(struct virtio_mem *vm,
+					       unsigned long mb_id, int *count)
+{
+	const int bit = (mb_id - vm->first_mb_id) * vm->nb_sb_per_mb;
+	int sb_id, next_bit;
+
+	sb_id = find_next_zero_bit(vm->sb_bitmap, bit + vm->nb_sb_per_mb, bit)
+		- bit;
+
+	next_bit = find_next_bit(vm->sb_bitmap, bit + vm->nb_sb_per_mb, sb_id + bit);
+
+	*count = next_bit - sb_id - bit;
+
+	return sb_id;
+}
+
 /*
  * Prepare the subblock bitmap for the next memory block.
  */
