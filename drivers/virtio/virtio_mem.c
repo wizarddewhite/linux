@@ -399,7 +399,7 @@ static int virtio_mem_sb_bitmap_prepare_next_mb(struct virtio_mem *vm)
 		return -ENOMEM;
 
 	mutex_lock(&vm->hotplug_mutex);
-	if (new_sb_bitmap)
+	if (vm->sb_bitmap)
 		memcpy(new_sb_bitmap, vm->sb_bitmap, old_pages * PAGE_SIZE);
 
 	old_sb_bitmap = vm->sb_bitmap;
