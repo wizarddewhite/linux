@@ -259,20 +259,20 @@ static int virtio_mem_mb_state_prepare_next_mb(struct virtio_mem *vm)
 {
 	unsigned long old_bytes = vm->next_mb_id - vm->first_mb_id + 1;
 	unsigned long new_bytes = vm->next_mb_id - vm->first_mb_id + 2;
-	int old_pages = PFN_UP(old_bytes);
-	int new_pages = PFN_UP(new_bytes);
+	int old_size = PAGE_ALIGN(old_bytes);
+	int new_size = PAGE_ALIGN(new_bytes);
 	uint8_t *new_mb_state;
 
-	if (vm->mb_state && old_pages == new_pages)
+	if (vm->mb_state && old_size == new_size)
 		return 0;
 
-	new_mb_state = vzalloc(new_pages * PAGE_SIZE);
+	new_mb_state = vzalloc(new_size);
 	if (!new_mb_state)
 		return -ENOMEM;
 
 	mutex_lock(&vm->hotplug_mutex);
 	if (vm->mb_state)
-		memcpy(new_mb_state, vm->mb_state, old_pages * PAGE_SIZE);
+		memcpy(new_mb_state, vm->mb_state, old_size);
 	vfree(vm->mb_state);
 	vm->mb_state = new_mb_state;
 	mutex_unlock(&vm->hotplug_mutex);
@@ -387,20 +387,20 @@ static int virtio_mem_sb_bitmap_prepare_next_mb(struct virtio_mem *vm)
 	const unsigned long old_nb_mb = vm->next_mb_id - vm->first_mb_id;
 	const unsigned long old_nb_bits = old_nb_mb * vm->nb_sb_per_mb;
 	const unsigned long new_nb_bits = (old_nb_mb + 1) * vm->nb_sb_per_mb;
-	int old_pages = PFN_UP(BITS_TO_LONGS(old_nb_bits) * sizeof(long));
-	int new_pages = PFN_UP(BITS_TO_LONGS(new_nb_bits) * sizeof(long));
+	int old_size = PAGE_ALIGN(BITS_TO_LONGS(old_nb_bits) * sizeof(long));
+	int new_size = PAGE_ALIGN(BITS_TO_LONGS(new_nb_bits) * sizeof(long));
 	unsigned long *new_sb_bitmap, *old_sb_bitmap;
 
-	if (vm->sb_bitmap && old_pages == new_pages)
+	if (vm->sb_bitmap && old_size == new_size)
 		return 0;
 
-	new_sb_bitmap = vzalloc(new_pages * PAGE_SIZE);
+	new_sb_bitmap = vzalloc(new_size);
 	if (!new_sb_bitmap)
 		return -ENOMEM;
 
 	mutex_lock(&vm->hotplug_mutex);
 	if (vm->sb_bitmap)
-		memcpy(new_sb_bitmap, vm->sb_bitmap, old_pages * PAGE_SIZE);
+		memcpy(new_sb_bitmap, vm->sb_bitmap, old_size);
 
 	old_sb_bitmap = vm->sb_bitmap;
 	vm->sb_bitmap = new_sb_bitmap;
