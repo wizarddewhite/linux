@@ -8480,8 +8480,8 @@ int alloc_contig_range(unsigned long start, unsigned long end,
 		.no_set_skip_hint = true,
 		.gfp_mask = current_gfp_context(gfp_mask),
 		.alloc_contig = true,
+		.migratepages = LIST_HEAD_INIT(cc.migratepages),
 	};
-	INIT_LIST_HEAD(&cc.migratepages);
 
 	/*
 	 * What we do here is we mark all pageblocks in range as
