@@ -3169,6 +3169,7 @@ struct softnet_data {
 	unsigned int		processed;
 	unsigned int		time_squeeze;
 	unsigned int		received_rps;
+	unsigned int		dropped;
 #ifdef CONFIG_RPS
 	struct softnet_data	*rps_ipi_list;
 #endif
@@ -3198,7 +3199,6 @@ struct softnet_data {
 	unsigned int		cpu;
 	unsigned int		input_queue_tail;
 #endif
-	unsigned int		dropped;
 	struct sk_buff_head	input_pkt_queue;
 	struct napi_struct	backlog;
 
