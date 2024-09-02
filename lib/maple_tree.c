@@ -1989,9 +1989,6 @@ static inline void mab_mas_cp(struct maple_big_node *b_node,
 	if (mab_end - mab_start > mt_pivots[mt])
 		mab_end--;
 
-	if (!pivots[mt_pivots[mt] - 1])
-		slots[mt_pivots[mt]] = NULL;
-
 	i = mab_start;
 	do {
 		pivots[j++] = b_node->pivot[i++];
