@@ -2142,7 +2142,7 @@ static inline bool mas_next_sibling(struct ma_state *mas)
 
 	parent = *mas;
 	mas_ascend(&parent);
-	parent.offset = mte_parent_slot(mas->node) + 1;
+	parent.offset++;
 	if (parent.offset > mas_data_end(&parent))
 		return false;
 
