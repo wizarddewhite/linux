@@ -2231,7 +2231,7 @@ static inline void mast_rebalance_next(struct maple_subtree_state *mast)
 {
 	unsigned char b_end = mast->bn->b_end;
 
-	mas_mab_cp(mast->orig_r, 0, mt_slot_count(mast->orig_r->node),
+	mas_mab_cp(mast->orig_r, 0, mt_pivot_count(mast->orig_r->node),
 		   mast->bn, b_end);
 	mast->orig_r->last = mast->orig_r->max;
 }
@@ -2706,7 +2706,7 @@ static inline void mast_combine_cp_right(struct maple_subtree_state *mast)
 		return;
 
 	mas_mab_cp(mast->orig_r, mast->orig_r->offset + 1,
-		   mt_slot_count(mast->orig_r->node), mast->bn,
+		   mt_pivot_count(mast->orig_r->node), mast->bn,
 		   mast->bn->b_end);
 	mast->orig_r->last = mast->orig_r->max;
 }
@@ -2970,7 +2970,7 @@ static inline void mas_rebalance(struct ma_state *mas,
 	l_mas = r_mas = *mas;
 
 	if (mas_next_sibling(&r_mas)) {
-		mas_mab_cp(&r_mas, 0, mt_slot_count(r_mas.node), b_node, b_end);
+		mas_mab_cp(&r_mas, 0, mt_pivot_count(r_mas.node), b_node, b_end);
 		r_mas.last = r_mas.index = r_mas.max;
 	} else {
 		mas_prev_sibling(&l_mas);
