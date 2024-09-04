@@ -2119,7 +2119,7 @@ static noinline_for_kasan void mas_store_b_node(struct ma_wr_state *wr_mas,
 		goto b_end;
 
 	/* Copy end data to the end of the node. */
-	mas_mab_cp(mas, slot, mas->end + 1, b_node, ++b_end);
+	mas_mab_cp(mas, slot, mas->end, b_node, ++b_end);
 	b_node->b_end--;
 	return;
 
