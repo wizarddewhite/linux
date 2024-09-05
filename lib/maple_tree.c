@@ -1926,11 +1926,11 @@ static inline void mas_mab_cp(struct ma_state *mas, unsigned char mas_start,
 	void __rcu **slots;
 	unsigned long *pivots, *gaps;
 	int i = mas_start, j = mab_start;
-	unsigned char piv_end;
 
 	node = mas_mn(mas);
 	mt = mte_node_type(mas->node);
 	pivots = ma_pivots(node, mt);
+
 	if (!i) {
 		b_node->pivot[j] = pivots[i++];
 		if (unlikely(i > mas_end))
@@ -1938,8 +1938,7 @@ static inline void mas_mab_cp(struct ma_state *mas, unsigned char mas_start,
 		j++;
 	}
 
-	piv_end = min(mas_end, mt_pivots[mt]);
-	for (; i < piv_end; i++, j++) {
+	for (; i < mas_end; i++, j++) {
 		b_node->pivot[j] = pivots[i];
 		if (unlikely(!b_node->pivot[j]))
 			goto complete;
