@@ -3191,7 +3191,6 @@ static inline bool mas_push_data(struct ma_state *mas, int height,
 
 	MA_STATE(tmp_mas, mas->tree, mas->index, mas->last);
 	tmp_mas = *mas;
-	tmp_mas.depth = mast->l->depth;
 
 	if (left && !mas_prev_sibling(&tmp_mas))
 		return false;
