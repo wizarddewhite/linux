@@ -3101,7 +3101,7 @@ static inline void mas_split_final_node(struct maple_subtree_state *mast,
 	mte_to_node(ancestor)->parent = mas_mn(mas)->parent;
 
 	mast->l->node = ancestor;
-	mab_mas_cp(mast->bn, 0, mt_slots[mast->bn->type] - 1, mast->l, true);
+	mab_mas_cp(mast->bn, 0, mast->bn->b_end, mast->l, true);
 	mas->offset = mast->bn->b_end - 1;
 }
 
