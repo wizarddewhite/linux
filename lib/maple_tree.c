@@ -3169,7 +3169,7 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 		cp = false;
 
 	if (cp)
-		mas_mab_cp(mas, split + skip, mt_slot_count(mas->node) - 1,
+		mas_mab_cp(mas, split + skip, mt_pivot_count(mas->node),
 			   mast->bn, mast->bn->b_end);
 
 	mast->bn->b_end--;
