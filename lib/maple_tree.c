@@ -3312,11 +3312,6 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 
 		split = mab_calc_split(mas, b_node, &mid_split);
 		mast_split_data(&mast, mas, split);
-		/*
-		 * Usually correct, mab_mas_cp in the above call overwrites
-		 * r->max.
-		 */
-		mast.r->max = mas->max;
 		mast_fill_bnode(&mast, mas, 1);
 		prev_l_mas = *mast.l;
 		prev_r_mas = *mast.r;
