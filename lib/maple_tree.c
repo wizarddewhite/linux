@@ -3116,7 +3116,6 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 					 unsigned char skip)
 {
 	bool cp = true;
-	unsigned char split;
 
 	memset(mast->bn, 0, sizeof(struct maple_big_node));
 
@@ -3128,7 +3127,6 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 	if (cp && mast->l->offset)
 		mas_mab_cp(mas, 0, mast->l->offset - 1, mast->bn, 0);
 
-	split = mast->bn->b_end;
 	mab_set_b_end(mast->bn, mast->l, mast->l->node);
 	mast->r->offset = mast->bn->b_end;
 	mab_set_b_end(mast->bn, mast->r, mast->r->node);
@@ -3136,7 +3134,7 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 		cp = false;
 
 	if (cp)
-		mas_mab_cp(mas, split + skip, mt_pivot_count(mas->node),
+		mas_mab_cp(mas, mast->l->offset + skip, mt_pivot_count(mas->node),
 			   mast->bn, mast->bn->b_end);
 
 	mast->bn->b_end--;
