@@ -1931,15 +1931,9 @@ static inline void mas_mab_cp(struct ma_state *mas, unsigned char mas_start,
 	mt = mte_node_type(mas->node);
 	pivots = ma_pivots(node, mt);
 
-	if (!i) {
-		b_node->pivot[j++] = pivots[i++];
-		if (unlikely(i > mas_end))
-			goto complete;
-	}
-
 	for (; i < mas_end; i++) {
 		b_node->pivot[j++] = pivots[i];
-		if (unlikely(!pivots[i]))
+		if (unlikely(!pivots[i]) && i)
 			goto complete;
 
 		if (unlikely(mas->max == pivots[i]))
