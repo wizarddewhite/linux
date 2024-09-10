@@ -1060,7 +1060,6 @@ static inline void mte_set_gap(const struct maple_enode *mn,
  */
 static int mas_ascend(struct ma_state *mas)
 {
-	struct maple_enode *p_enode; /* parent enode. */
 	struct maple_enode *a_enode; /* ancestor enode. */
 	struct maple_node *a_node; /* ancestor node. */
 	struct maple_node *p_node; /* parent node. */
@@ -1107,10 +1106,9 @@ static int mas_ascend(struct ma_state *mas)
 		set_max = true;
 
 	do {
-		p_enode = a_enode;
-		a_type = mas_parent_type(mas, p_enode);
-		a_node = mte_parent(p_enode);
-		a_slot = mte_parent_slot(p_enode);
+		a_type = mas_parent_type(mas, a_enode);
+		a_node = mte_parent(a_enode);
+		a_slot = mte_parent_slot(a_enode);
 		a_enode = mt_mk_node(a_node, a_type);
 		pivots = ma_pivots(a_node, a_type);
 
