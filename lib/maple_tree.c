@@ -1109,7 +1109,6 @@ static int mas_ascend(struct ma_state *mas)
 		a_type = mas_parent_type(mas, a_enode);
 		a_node = mte_parent(a_enode);
 		a_slot = mte_parent_slot(a_enode);
-		a_enode = mt_mk_node(a_node, a_type);
 		pivots = ma_pivots(a_node, a_type);
 
 		if (unlikely(ma_dead_node(a_node)))
@@ -1130,6 +1129,9 @@ static int mas_ascend(struct ma_state *mas)
 
 		if (unlikely(ma_is_root(a_node)))
 			break;
+
+		/* Go up to ancestor */
+		a_enode = mt_mk_node(a_node, a_type);
 
 	} while (!set_min || !set_max);
 
