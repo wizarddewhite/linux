@@ -3120,12 +3120,10 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 
 	memset(mast->bn, 0, sizeof(struct maple_big_node));
 
-	if (mte_is_root(mas->node)) {
+	if (mte_is_root(mas->node))
 		cp = false;
-	} else {
+	else
 		mas_ascend(mas);
-		mas->offset = mte_parent_slot(mas->node);
-	}
 
 	if (cp && mast->l->offset)
 		mas_mab_cp(mas, 0, mast->l->offset - 1, mast->bn, 0);
