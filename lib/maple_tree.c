@@ -1932,25 +1932,24 @@ static inline void mas_mab_cp(struct ma_state *mas, unsigned char mas_start,
 	pivots = ma_pivots(node, mt);
 
 	if (!i) {
-		b_node->pivot[j] = pivots[i++];
+		b_node->pivot[j++] = pivots[i++];
 		if (unlikely(i > mas_end))
 			goto complete;
-		j++;
 	}
 
-	for (; i < mas_end; i++, j++) {
-		b_node->pivot[j] = pivots[i];
-		if (unlikely(!b_node->pivot[j]))
+	for (; i < mas_end; i++) {
+		b_node->pivot[j++] = pivots[i];
+		if (unlikely(!pivots[i]))
 			goto complete;
 
-		if (unlikely(mas->max == b_node->pivot[j]))
+		if (unlikely(mas->max == pivots[i]))
 			goto complete;
 	}
 
-	b_node->pivot[j] = mas_safe_pivot(mas, pivots, i, mt);
+	b_node->pivot[j++] = mas_safe_pivot(mas, pivots, i, mt);
 
 complete:
-	b_node->b_end = ++j;
+	b_node->b_end = j;
 	j -= mab_start;
 	slots = ma_slots(node, mt);
 	memcpy(b_node->slot + mab_start, slots + mas_start, sizeof(void *) * j);
