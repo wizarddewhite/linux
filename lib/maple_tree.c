@@ -3100,8 +3100,9 @@ static inline void mast_split_final_node(struct maple_subtree_state *mast,
 	mas_set_parent(mas, mast->r->node, ancestor, mast->r->offset);
 	mte_to_node(ancestor)->parent = mas_mn(mas)->parent;
 
-	mast->l->node = ancestor;
-	mab_mas_cp(mast->bn, 0, mast->bn->b_end, mast->l, true);
+	mast->orig_l->node = mas->node;
+	mas->node = ancestor;
+	mab_mas_cp(mast->bn, 0, mast->bn->b_end, mas, false);
 	mas->offset = mast->bn->b_end - 1;
 }
 
@@ -3245,7 +3246,6 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 	struct maple_subtree_state mast;
 	int height = 1;
 	unsigned char mid_split, split = 0;
-	struct maple_enode *old;
 
 	/*
 	 * Splitting is handled differently from any other B-tree; the Maple
@@ -3309,9 +3309,7 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 	}
 
 	/* Set the original node as dead */
-	old = mas->node;
-	mas->node = l_mas.node;
-	mas_wmb_replace(mas, old);
+	mas_wmb_replace(mas, mast.orig_l->node);
 	mtree_range_walk(mas);
 	return;
 }
