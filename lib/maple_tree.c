@@ -3074,12 +3074,12 @@ done:
 }
 
 /*
- * mas_split_final_node() - Split the final node in a subtree operation.
+ * mast_split_final_node() - Split the final node in a subtree operation.
  * @mast: the maple subtree state
  * @mas: The maple state
  * @height: The height of the tree in case it's a new root.
  */
-static inline void mas_split_final_node(struct maple_subtree_state *mast,
+static inline void mast_split_final_node(struct maple_subtree_state *mast,
 					struct ma_state *mas, int height)
 {
 	struct maple_enode *ancestor;
@@ -3237,7 +3237,7 @@ static inline bool mas_push_data(struct ma_state *mas, int height,
 
 	mast_split_data(mast, mas, split);
 	mast_fill_bnode(mast, mas, 2);
-	mas_split_final_node(mast, mas, height + 1);
+	mast_split_final_node(mast, mas, height + 1);
 	return true;
 }
 
@@ -3286,7 +3286,7 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 
 	while (height++ <= mas->depth) {
 		if (mt_slots[b_node->type] > b_node->b_end) {
-			mas_split_final_node(&mast, mas, height);
+			mast_split_final_node(&mast, mas, height);
 			break;
 		}
 
