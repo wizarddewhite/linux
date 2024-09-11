@@ -3150,9 +3150,10 @@ static inline void mast_split_data(struct maple_subtree_state *mast,
 	mab_mas_cp(mast->bn, 0, split, mast->l, true);
 	mab_mas_cp(mast->bn, split + 1, mast->bn->b_end, mast->r, false);
 	mast->l->offset = mte_parent_slot(mas->node);
-	mast->r->min = mast->l->max + 1;
-	if (mte_is_leaf(mas->node))
+	if (mte_is_leaf(mas->node)) {
+		mast->r->min = mast->l->max + 1;
 		return;
+	}
 
 	p_slot = mast->orig_l->offset;
 	mas_set_split_parent(mast->orig_l, mast->l->node, mast->r->node,
