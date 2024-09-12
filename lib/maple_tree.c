@@ -2954,7 +2954,6 @@ static inline void mas_rebalance(struct ma_state *mas,
 	mast.orig_l = &l_mas;
 	mast.orig_r = &r_mas;
 	mast.bn = b_node;
-	mast.bn->type = mte_node_type(mas->node);
 
 	l_mas = r_mas = *mas;
 
