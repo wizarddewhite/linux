@@ -3564,18 +3564,20 @@ static inline void mas_extend_spanning_null(struct ma_wr_state *l_wr_mas,
 	unsigned char l_slot;
 
 	l_slot = l_mas->offset;
-	if (!l_wr_mas->content)
+	if (!l_wr_mas->content) {
+		/* If this one is null, the next and prev are not */
 		l_mas->index = l_wr_mas->r_min;
+	} else {
+		if ((l_mas->index == l_wr_mas->r_min) &&
+			 (l_slot &&
+			  !mas_slot_locked(l_mas, l_wr_mas->slots, l_slot - 1))) {
+			if (l_slot > 1)
+				l_mas->index = l_wr_mas->pivots[l_slot - 2] + 1;
+			else
+				l_mas->index = l_mas->min;
 
-	if ((l_mas->index == l_wr_mas->r_min) &&
-		 (l_slot &&
-		  !mas_slot_locked(l_mas, l_wr_mas->slots, l_slot - 1))) {
-		if (l_slot > 1)
-			l_mas->index = l_wr_mas->pivots[l_slot - 2] + 1;
-		else
-			l_mas->index = l_mas->min;
-
-		l_mas->offset = l_slot - 1;
+			l_mas->offset = l_slot - 1;
+		}
 	}
 
 	if (!r_wr_mas->content) {
