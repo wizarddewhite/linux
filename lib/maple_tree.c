@@ -2073,8 +2073,6 @@ static noinline_for_kasan void mas_store_b_node(struct ma_wr_state *wr_mas,
 	if (piv + 1 < mas->index) {
 		/* Handle range starting after old range */
 		b_node->slot[b_end] = wr_mas->content;
-		if (!wr_mas->content)
-			b_node->gap[b_end] = mas->index - 1 - piv;
 		b_node->pivot[b_end++] = mas->index - 1;
 	}
 
@@ -2098,8 +2096,6 @@ static noinline_for_kasan void mas_store_b_node(struct ma_wr_state *wr_mas,
 							  offset_end);
 
 		b_node->slot[++b_end] = wr_mas->content;
-		if (!wr_mas->content)
-			b_node->gap[b_end] = piv - mas->last + 1;
 		b_node->pivot[b_end] = piv;
 	}
 
