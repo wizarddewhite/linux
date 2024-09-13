@@ -2066,11 +2066,9 @@ static noinline_for_kasan void mas_store_b_node(struct ma_wr_state *wr_mas,
 		/* Copy start data up to insert. */
 		mas_mab_cp(mas, 0, slot - 1, b_node, 0);
 		b_end = b_node->b_end;
-		piv = b_node->pivot[b_end - 1];
-	} else
-		piv = mas->min - 1;
+	}
 
-	if (piv + 1 < mas->index) {
+	if (wr_mas->r_min < mas->index) {
 		/* Handle range starting after old range */
 		b_node->slot[b_end] = wr_mas->content;
 		b_node->pivot[b_end++] = mas->index - 1;
@@ -3555,6 +3553,7 @@ static inline void mas_extend_spanning_null(struct ma_wr_state *l_wr_mas,
 				l_mas->index = l_mas->min;
 
 			l_mas->offset = l_slot - 1;
+			l_wr_mas->r_min = l_mas->index;
 		}
 	}
 
