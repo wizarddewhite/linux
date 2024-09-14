@@ -3738,12 +3738,10 @@ static noinline void mas_wr_spanning_store(struct ma_wr_state *wr_mas)
 		mas->offset = l_mas.offset;
 		mas->index = l_mas.index;
 		mas->last = l_mas.last = r_mas.last;
-	}
 
-	/* expanding NULLs may make this cover the entire range */
-	if (!l_mas.index && r_mas.last == ULONG_MAX) {
-		mas_set_range(mas, 0, ULONG_MAX);
-		return mas_new_root(mas, wr_mas->entry);
+		/* expanding NULLs may make this cover the entire range */
+		if (!mas->index && mas->last == ULONG_MAX)
+			return mas_new_root(mas, wr_mas->entry);
 	}
 
 	memset(&b_node, 0, sizeof(struct maple_big_node));
