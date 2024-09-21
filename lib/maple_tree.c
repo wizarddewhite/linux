@@ -2849,7 +2849,6 @@ static void mas_spanning_rebalance(struct ma_state *mas,
 		 * iteration
 		 */
 		memset(mast->bn, 0, sizeof(struct maple_big_node));
-		mast->bn->type = mte_node_type(left);
 		l_mas.depth++;
 
 		/* Root already stored in l->node. */
