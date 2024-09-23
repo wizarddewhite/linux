@@ -2725,7 +2725,7 @@ static inline void mast_combine_cp_right(struct maple_subtree_state *mast)
  */
 static inline bool mast_sufficient(struct maple_subtree_state *mast)
 {
-	if (mast->bn->b_end > mt_min_slot_count(mast->orig_l->node))
+	if (mast->bn->b_end > mt_min_slots[mast->bn->type])
 		return true;
 
 	return false;
@@ -2738,7 +2738,7 @@ static inline bool mast_sufficient(struct maple_subtree_state *mast)
  */
 static inline bool mast_overflow(struct maple_subtree_state *mast)
 {
-	if (mast->bn->b_end >= mt_slot_count(mast->orig_l->node))
+	if (mast->bn->b_end >= mt_slots[mast->bn->type])
 		return true;
 
 	return false;
