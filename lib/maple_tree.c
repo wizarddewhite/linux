@@ -2377,10 +2377,11 @@ static inline unsigned char mas_mab_to_node(struct ma_state *mas,
 	} else {
 		split = mab_calc_split(mas, b_node, mid_split);
 		*right = mas_new_ma_node(mas, b_node);
+
+		if (*mid_split)
+			*middle = mas_new_ma_node(mas, b_node);
 	}
 
-	if (*mid_split)
-		*middle = mas_new_ma_node(mas, b_node);
 
 	return split;
 
