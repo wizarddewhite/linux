@@ -3115,25 +3115,19 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 					 struct ma_state *mas,
 					 unsigned char skip)
 {
-	bool cp = true;
-
 	memset(mast->bn, 0, sizeof(struct maple_big_node));
 
-	if (mte_is_root(mas->node))
-		cp = false;
-	else
+	if (!mte_is_root(mas->node))
 		mas_ascend(mas);
 
-	if (cp && mast->l->offset)
+	if (mast->l->offset)
 		mas_mab_cp(mas, 0, mast->l->offset - 1, mast->bn, 0);
 
 	mab_set_b_end(mast->bn, mast->l, mast->l->node);
 	mast->r->offset = mast->bn->b_end;
 	mab_set_b_end(mast->bn, mast->r, mast->r->node);
-	if (mast->bn->pivot[mast->bn->b_end - 1] == mas->max)
-		cp = false;
 
-	if (cp)
+	if (mast->bn->pivot[mast->bn->b_end - 1] != mas->max)
 		mas_mab_cp(mas, mast->l->offset + skip, mt_pivot_count(mas->node),
 			   mast->bn, mast->bn->b_end);
 
