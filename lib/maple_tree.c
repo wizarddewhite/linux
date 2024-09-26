@@ -3089,7 +3089,7 @@ static inline void mast_split_final_node(struct maple_subtree_state *mast,
 			mast->bn->type = maple_arange_64;
 		else
 			mast->bn->type = maple_range_64;
-		mas->depth = height;
+		mas->depth = height + 1;
 	}
 	/*
 	 * Only a single node is used here, could be root.
@@ -3231,7 +3231,7 @@ static inline bool mas_push_data(struct ma_state *mas, int height,
 
 	mast_split_data(mast, mas, split);
 	mast_fill_bnode(mast, mas, 2);
-	mast_split_final_node(mast, mas, height + 1);
+	mast_split_final_node(mast, mas, height);
 	return true;
 }
 
@@ -3243,7 +3243,7 @@ static inline bool mas_push_data(struct ma_state *mas, int height,
 static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 {
 	struct maple_subtree_state mast;
-	int height = 0;
+	int height = 1;
 	unsigned char mid_split, split = 0;
 	struct maple_enode *old;
 
@@ -3278,12 +3278,6 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 	mast.bn = b_node;
 
 	while (true) {
-		++height;
-		if (mt_slots[b_node->type] > b_node->b_end) {
-			mast_split_final_node(&mast, mas, height);
-			break;
-		}
-
 		l_mas = r_mas = *mas;
 		l_mas.node = mas_new_ma_node(mas, b_node);
 		r_mas.node = mas_new_ma_node(mas, b_node);
@@ -3304,8 +3298,14 @@ static void mas_split(struct ma_state *mas, struct maple_big_node *b_node)
 		split = mab_calc_split(mas, b_node, &mid_split);
 		mast_split_data(&mast, mas, split);
 		mast_fill_bnode(&mast, mas, 1);
+		if (mt_slots[b_node->type] > b_node->b_end) {
+			mast_split_final_node(&mast, mas, height);
+			break;
+		}
+
 		prev_l_mas = *mast.l;
 		prev_r_mas = *mast.r;
+		++height;
 	}
 
 	/* Set the original node as dead */
