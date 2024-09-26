@@ -3097,7 +3097,7 @@ static inline void mast_split_final_node(struct maple_subtree_state *mast,
 	 */
 	ancestor = mas_new_ma_node(mas, mast->bn);
 	mas_set_parent(mas, mast->l->node, ancestor, mast->l->offset);
-	mas_set_parent(mas, mast->r->node, ancestor, mast->r->offset);
+	mas_set_parent(mas, mast->r->node, ancestor, mast->l->offset + 1);
 	mte_to_node(ancestor)->parent = mas_mn(mas)->parent;
 
 	mast->orig_l->node = mas->node;
@@ -3125,7 +3125,6 @@ static inline void mast_fill_bnode(struct maple_subtree_state *mast,
 		mas_mab_cp(mas, 0, mast->l->offset - 1, mast->bn, 0);
 
 	mab_set_b_end(mast->bn, mast->l, mast->l->node);
-	mast->r->offset = mast->bn->b_end;
 	mab_set_b_end(mast->bn, mast->r, mast->r->node);
 
 	if (mast->bn->pivot[mast->bn->b_end - 1] != mas->max)
