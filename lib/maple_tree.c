@@ -3010,7 +3010,6 @@ static inline void mas_destroy_rebalance(struct ma_state *mas, unsigned char end
 
 	memcpy(slots, l_slots + split + 1, sizeof(void *) * tmp);
 	memcpy(pivs, l_pivs + split + 1, sizeof(unsigned long) * tmp);
-	pivs[tmp] = l_mas.max;
 	memcpy(slots + tmp, ma_slots(node, mt), sizeof(void *) * end);
 	memcpy(pivs + tmp, ma_pivots(node, mt), sizeof(unsigned long) * end);
 
