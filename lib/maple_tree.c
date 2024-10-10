@@ -2261,7 +2261,7 @@ static inline void mast_rebalance_prev(struct maple_subtree_state *mast)
  * @mast: The maple_subtree_state.
  */
 static inline
-bool mast_spanning_rebalance(struct maple_subtree_state *mast)
+void mast_spanning_rebalance(struct maple_subtree_state *mast)
 {
 	struct ma_state r_tmp = *mast->orig_r;
 	struct ma_state l_tmp = *mast->orig_l;
@@ -2280,7 +2280,7 @@ bool mast_spanning_rebalance(struct maple_subtree_state *mast)
 
 			mast_rebalance_next(mast);
 			*mast->orig_l = l_tmp;
-			return true;
+			return;
 		} else if (mast->orig_l->offset != 0) {
 			mast->orig_l->offset--;
 			do {
@@ -2291,13 +2291,13 @@ bool mast_spanning_rebalance(struct maple_subtree_state *mast)
 
 			mast_rebalance_prev(mast);
 			*mast->orig_r = r_tmp;
-			return true;
+			return;
 		}
 	} while (!mte_is_root(mast->orig_r->node));
 
 	*mast->orig_r = r_tmp;
 	*mast->orig_l = l_tmp;
-	return false;
+	return;
 }
 
 /*
