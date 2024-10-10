@@ -2886,7 +2886,7 @@ static void mas_spanning_rebalance(struct ma_state *mas,
 	l_mas.node = mt_mk_node(ma_mnode_ptr(mas_pop_node(mas)),
 				mte_node_type(mast->orig_l->node));
 	l_mas.depth++;
-	mab_mas_cp(mast->bn, 0, mt_slots[mast->bn->type] - 1, &l_mas, true);
+	mab_mas_cp(mast->bn, 0, mast->bn->b_end - 1, &l_mas, true);
 	mas_set_parent(mas, left, l_mas.node, slot);
 	if (middle)
 		mas_set_parent(mas, middle, l_mas.node, ++slot);
