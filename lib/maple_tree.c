@@ -3216,6 +3216,7 @@ static inline bool mas_push_data(struct ma_state *mas, int height,
 		mast->bn->b_end = slot_total + 1;
 	} else {
 		mas_mab_cp(&tmp_mas, 0, end, mast->bn, mast->bn->b_end);
+		mast->bn->b_end--;
 	}
 
 	/* Configure mast for splitting of mast->bn */
