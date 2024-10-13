@@ -2624,9 +2624,6 @@ static inline void mas_wmb_replace(struct ma_state *mas,
 	/* Insert the new data in the tree */
 	mas_topiary_replace(mas, old_enode);
 
-	if (mte_is_leaf(mas->node))
-		return;
-
 	mas_update_gap(mas);
 }
 
