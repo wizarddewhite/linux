@@ -2542,7 +2542,7 @@ static inline void mas_topiary_replace(struct ma_state *mas,
 		n = 0;
 		for (i = 0; i < 3; i++) {
 			if (mas_is_none(&tmp[i]))
-				continue;
+				break;
 
 			while (n < 3) {
 				if (!mas_find_child(&tmp[i], &tmp_next[n]))
@@ -2577,7 +2577,7 @@ static inline void mas_topiary_replace(struct ma_state *mas,
 		n = 0;
 		for (i = 0; i < 3; i++) {
 			if (mas_is_none(&tmp[i]))
-				continue;
+				break;
 
 			while (n < 3) {
 				if (!mas_find_child(&tmp[i], &tmp_next[n]))
