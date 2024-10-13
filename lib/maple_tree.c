@@ -2556,11 +2556,12 @@ static inline void mas_topiary_replace(struct ma_state *mas,
 		if (MAS_WARN_ON(mas, n == 0))
 			break;
 
-		while (n < 3)
-			tmp_next[n++].status = ma_none;
-
-		for (i = 0; i < 3; i++)
-			tmp[i] = tmp_next[i];
+		for (i = 0; i < 3; i++) {
+			if (i < n)
+				tmp[i] = tmp_next[i];
+			else
+				tmp[i].status = ma_none;
+		}
 	}
 
 	/* Collect the old nodes that need to be discarded */
@@ -2596,12 +2597,12 @@ static inline void mas_topiary_replace(struct ma_state *mas,
 		if (MAS_WARN_ON(mas, n == 0))
 			break;
 
-		while (n < 3)
-			tmp_next[n++].status = ma_none;
-
 		for (i = 0; i < 3; i++) {
 			mas_topiary_node(mas, &tmp[i], in_rcu);
-			tmp[i] = tmp_next[i];
+			if (i < n)
+				tmp[i] = tmp_next[i];
+			else
+				tmp[i].status = ma_none;
 		}
 	} while (!mte_is_leaf(tmp[0].node));
 
