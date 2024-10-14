@@ -5297,7 +5297,6 @@ next:
 		node = mte_to_node(enode);
 	} while (start != enode);
 
-	node = mte_to_node(enode);
 	node->slot_len = mte_dead_leaves(enode, mt, slots);
 	if (free)
 		mt_free_bulk(node->slot_len, slots);
