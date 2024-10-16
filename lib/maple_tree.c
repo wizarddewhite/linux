@@ -2230,7 +2230,6 @@ static inline void mast_rebalance_prev(struct maple_subtree_state *mast)
 
 	mab_shift_right(mast->bn, end);
 	mas_mab_cp(mast->orig_l, 0, end - 1, mast->bn, 0);
-	mast->l->min = mast->orig_l->min;
 	mast->orig_l->index = mast->orig_l->min;
 	mast->bn->b_end = end + b_end;
 	mast->l->offset += end;
