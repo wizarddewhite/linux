@@ -2782,20 +2782,20 @@ dead_node:
  * mas_spanning_rebalance() - Rebalance across two nodes which may not be peers.
  * @mas: The starting maple state
  * @mast: The maple_subtree_state, keeps track of 4 maple states.
- * @count: The estimated count of iterations needed.
  *
- * Follow the tree upwards from @l_mas and @r_mas for @count, or until the root
- * is hit.  First @b_node is split into two entries which are inserted into the
- * next iteration of the loop.  @b_node is returned populated with the final
- * iteration. @mas is used to obtain allocations.  orig_l_mas keeps track of the
- * nodes that will remain active by using orig_l_mas->index and orig_l_mas->last
- * to account of what has been copied into the new sub-tree.  The update of
- * orig_l_mas->last is used in mas_consume to find the slots that will need to
- * be either freed or destroyed.  orig_l_mas->depth keeps track of the height of
- * the new sub-tree in case the sub-tree becomes the full tree.
+ * Follow the tree upwards from @l_mas and @r_mas until a sufficient joint or
+ * until the root is hit.  First @b_node is split into two entries which are
+ * inserted into the next iteration of the loop.  @b_node is returned
+ * populated with the final iteration. @mas is used to obtain allocations.
+ * orig_l_mas keeps track of the nodes that will remain active by using
+ * orig_l_mas->index and orig_l_mas->last to account of what has been copied
+ * into the new sub-tree.  The update of orig_l_mas->last is used in
+ * mas_consume to find the slots that will need to be either freed or
+ * destroyed.  orig_l_mas->depth keeps track of the height of the new sub-tree
+ * in case the sub-tree becomes the full tree.
  */
 static void mas_spanning_rebalance(struct ma_state *mas,
-		struct maple_subtree_state *mast, unsigned char count)
+		struct maple_subtree_state *mast)
 {
 	unsigned char split, mid_split;
 	unsigned char slot = 0;
@@ -2833,7 +2833,7 @@ static void mas_spanning_rebalance(struct ma_state *mas,
 	 * the tree is performed and the parent pointers are updated.
 	 * See mas_topiary_replace() for more information.
 	 */
-	while (count--) {
+	while (true) {
 		mast->bn->b_end--;
 		mast->bn->type = mte_node_type(mast->orig_l->node);
 		split = mas_mab_to_node(mas, mast->bn, &left, &right, &middle,
@@ -2875,10 +2875,6 @@ static void mas_spanning_rebalance(struct ma_state *mas,
 			break;
 
 		mast_spanning_rebalance(mast);
-
-		/* rebalancing from other nodes may require another loop. */
-		if (!count)
-			count++;
 	}
 
 	l_mas.node = mt_mk_node(ma_mnode_ptr(mas_pop_node(mas)),
@@ -2923,7 +2919,6 @@ new_root:
 static inline void mas_rebalance(struct ma_state *mas,
 				struct maple_big_node *b_node)
 {
-	char empty_count = mas_mt_height(mas);
 	struct maple_subtree_state mast;
 	unsigned char shift, b_end = ++b_node->b_end;
 
@@ -2961,7 +2956,7 @@ static inline void mas_rebalance(struct ma_state *mas,
 		l_mas.index = l_mas.last = l_mas.min;
 	}
 
-	return mas_spanning_rebalance(mas, &mast, empty_count);
+	return mas_spanning_rebalance(mas, &mast);
 }
 
 /*
@@ -3681,7 +3676,6 @@ static noinline void mas_wr_spanning_store(struct ma_wr_state *wr_mas)
 	struct maple_subtree_state mast;
 	struct maple_big_node b_node;
 	struct ma_state *mas;
-	unsigned char height;
 
 	/* Left and Right side of spanning store */
 	MA_STATE(l_mas, NULL, 0, 0);
@@ -3710,7 +3704,6 @@ static noinline void mas_wr_spanning_store(struct ma_wr_state *wr_mas)
 	 * Node rebalancing may occur due to this store, so there may be three new
 	 * entries per level plus a new root.
 	 */
-	height = mas_mt_height(mas);
 
 	/*
 	 * Set up right side.  Need to get to the next offset after the spanning
@@ -3758,7 +3751,7 @@ static noinline void mas_wr_spanning_store(struct ma_wr_state *wr_mas)
 	mast.orig_l = &l_mas;
 	mast.orig_r = &r_mas;
 	/* Combine l_mas and r_mas and split them up evenly again. */
-	return mas_spanning_rebalance(mas, &mast, height + 1);
+	return mas_spanning_rebalance(mas, &mast);
 }
 
 /*
