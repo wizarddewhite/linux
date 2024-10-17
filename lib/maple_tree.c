@@ -1721,7 +1721,6 @@ static inline void mas_put_in_tree(struct ma_state *mas,
 	void __rcu **slots;
 
 	if (mte_is_root(mas->node)) {
-		mas_mn(mas)->parent = ma_parent_ptr(mas_tree_parent(mas));
 		rcu_assign_pointer(mas->tree->ma_root, mte_mk_root(mas->node));
 		mas_set_height(mas);
 	} else {
