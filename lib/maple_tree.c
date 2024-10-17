@@ -7515,6 +7515,11 @@ void mt_validate(struct maple_tree *mt)
 	if (!mas_is_active(&mas))
 		return;
 
+	if (mas_mn(&mas)->parent != ma_parent_ptr(mas_tree_parent((&mas))))
+		pr_err("Root node's parent(%p) should be %p\n",
+			mas_mn(&mas)->parent,
+			ma_parent_ptr(mas_tree_parent((&mas))));
+
 	while (!mte_is_leaf(mas.node))
 		mas_descend(&mas);
 
