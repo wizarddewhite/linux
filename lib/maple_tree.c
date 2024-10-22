@@ -7520,6 +7520,12 @@ static void mt_validate_nulls(struct maple_tree *mt)
 		MT_BUG_ON(mt, !last && !entry);
 		last = entry;
 		if (offset == mas_data_end(&mas)) {
+			if ((mas.max != ULONG_MAX) && !entry) {
+				pr_err("Last slot %p end with NULL\n",
+					mas_mn(&mas));
+				MT_BUG_ON(mas.tree, 1);
+			}
+
 			mas_next_node(&mas, mas_mn(&mas), ULONG_MAX);
 			if (mas_is_overflow(&mas))
 				return;
