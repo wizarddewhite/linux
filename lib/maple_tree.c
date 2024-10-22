@@ -2916,7 +2916,7 @@ static void mas_spanning_rebalance(struct ma_state *mas,
 new_root:
 		mas_mn(mast->l)->parent = ma_parent_ptr(mas_tree_parent(mas));
 		while (!mte_is_root(mast->orig_l->node))
-			mast_ascend(mast);
+			mas_ascend(mast->orig_l);
 	} else {
 		mas_mn(&l_mas)->parent = mas_mn(mast->orig_l)->parent;
 	}
