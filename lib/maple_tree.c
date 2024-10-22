@@ -2660,19 +2660,12 @@ static inline void mast_cp_to_nodes(struct maple_subtree_state *mast,
 	struct maple_enode *left, struct maple_enode *middle,
 	struct maple_enode *right, unsigned char split, unsigned char mid_split)
 {
-	bool new_lmax = true;
-
 	mas_node_or_none(mast->l, left);
 	mas_node_or_none(mast->m, middle);
 	mas_node_or_none(mast->r, right);
 
 	mast->l->min = mast->orig_l->min;
-	if (split == mast->bn->b_end) {
-		mast->l->max = mast->orig_r->max;
-		new_lmax = false;
-	}
-
-	mab_mas_cp(mast->bn, 0, split, mast->l, new_lmax);
+	mab_mas_cp(mast->bn, 0, split, mast->l, true);
 
 	if (middle) {
 		mab_mas_cp(mast->bn, 1 + split, mid_split, mast->m, true);
