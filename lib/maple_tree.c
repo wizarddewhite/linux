@@ -5172,12 +5172,13 @@ static void mt_free_walk(struct rcu_head *head)
 	enode = mt_mk_node(node, node->type);
 	slots = mte_dead_walk(&enode, 0);
 	node = mte_to_node(enode);
-	do {
+	while (true) {
 		mt_free_bulk(node->slot_len, slots);
+		if (node == start)
+			break;
+
 		offset = node->parent_slot + 1;
 		enode = node->piv_parent;
-		if (mte_to_node(enode) == node)
-			goto free_leaf;
 
 		type = mte_node_type(enode);
 		slots = ma_slots(mte_to_node(enode), type);
@@ -5186,10 +5187,7 @@ static void mt_free_walk(struct rcu_head *head)
 					      lock_is_held(&rcu_callback_map)))
 			slots = mte_dead_walk(&enode, offset);
 		node = mte_to_node(enode);
-	} while ((node != start));
-
-	slots = ma_slots(node, node->type);
-	mt_free_bulk(node->slot_len, slots);
+	}
 
 free_leaf:
 	mt_free_rcu(&node->rcu);
