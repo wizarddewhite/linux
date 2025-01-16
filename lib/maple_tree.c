@@ -5238,12 +5238,12 @@ static void mt_destroy_walk(struct maple_enode *enode, struct maple_tree *mt,
 
 	start = enode;
 	slots = mte_destroy_descend(&enode, mt, start, 0);
-	node = mte_to_node(enode); // Updated in the above call.
 	while (true) {
 		enum maple_type type;
 		unsigned char offset;
 		struct maple_enode *parent, *tmp;
 
+		node = mte_to_node(enode);
 		node->slot_len = mte_dead_leaves(enode, mt, slots);
 		if (free)
 			mt_free_bulk(node->slot_len, slots);
@@ -5257,7 +5257,7 @@ static void mt_destroy_walk(struct maple_enode *enode, struct maple_tree *mt,
 		type = mte_node_type(enode);
 		slots = ma_slots(mte_to_node(enode), type);
 		if (offset >= mt_slots[type])
-			goto next;
+			continue;
 
 		tmp = mt_slot_locked(mt, slots, offset);
 		if (mte_node_type(tmp) && mte_to_node(tmp)) {
@@ -5265,8 +5265,6 @@ static void mt_destroy_walk(struct maple_enode *enode, struct maple_tree *mt,
 			enode = tmp;
 			slots = mte_destroy_descend(&enode, mt, parent, offset);
 		}
-next:
-		node = mte_to_node(enode);
 	}
 
 free_leaf:
