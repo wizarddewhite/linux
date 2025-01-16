@@ -5186,7 +5186,7 @@ static void mt_free_walk(struct rcu_head *head)
 					      lock_is_held(&rcu_callback_map)))
 			slots = mte_dead_walk(&enode, offset);
 		node = mte_to_node(enode);
-	} while ((node != start) || (node->slot_len < offset));
+	} while ((node != start));
 
 	slots = ma_slots(node, node->type);
 	mt_free_bulk(node->slot_len, slots);
