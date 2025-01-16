@@ -5210,8 +5210,6 @@ static inline void __rcu **mte_destroy_descend(struct maple_enode **enode,
 		type = mte_node_type(*enode);
 		slots = ma_slots(node, type);
 		next = mt_slot_locked(mt, slots, next_offset);
-		if ((mte_dead_node(next)))
-			next = mt_slot_locked(mt, slots, ++next_offset);
 
 		mte_set_node_dead(*enode);
 		node->type = type;
