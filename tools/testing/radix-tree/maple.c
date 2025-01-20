@@ -34802,7 +34802,7 @@ static void rcu_stress(struct maple_tree *mt, bool forward)
 	mt_set_in_rcu(mt);
 	do {
 		usleep(5);
-	} while (test.thread_count > ARRAY_SIZE(readers));
+	} while (test.thread_count < ARRAY_SIZE(readers));
 
 	if (forward)
 		rcu_stress_fwd(mt, &test, count, test_reader);
