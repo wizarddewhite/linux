@@ -39,6 +39,7 @@ atomic_t maple_tree_tests_passed;
 } while (0)
 #endif
 
+/* #define BENCH_SPLIT_STORE */
 /* #define BENCH_SLOT_STORE */
 /* #define BENCH_NODE_STORE */
 /* #define BENCH_AWALK */
@@ -1795,6 +1796,23 @@ static noinline void __init check_node_overwrite(struct maple_tree *mt)
 	/*mt_dump(mt, mt_dump_dec); */
 	mt_validate(mt);
 }
+
+#if defined(BENCH_SPLIT_STORE)
+static noinline void __init bench_split_store(struct maple_tree *mt)
+{
+	int i, max = 1040, count = 200;
+
+	for (i = 0; i < count; i++) {
+
+		for (i = 0; i < max; i += 10)
+			mtree_store_range(mt, i, i + 5,
+					xa_mk_value(i), GFP_KERNEL);
+
+		mtree_destroy(mt);
+
+	}
+}
+#endif
 
 #if defined(BENCH_SLOT_STORE)
 static noinline void __init bench_slot_store(struct maple_tree *mt)
@@ -3786,6 +3804,13 @@ static int __init maple_tree_seed(void)
 
 	pr_info("\nTEST STARTING\n\n");
 
+#if defined(BENCH_SPLIT_STORE)
+#define BENCH
+	mt_init_flags(&tree, MT_FLAGS_ALLOC_RANGE);
+	bench_split_store(&tree);
+	mtree_destroy(&tree);
+	goto skip;
+#endif
 #if defined(BENCH_SLOT_STORE)
 #define BENCH
 	mt_init_flags(&tree, MT_FLAGS_ALLOC_RANGE);
