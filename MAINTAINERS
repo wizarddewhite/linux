@@ -15575,7 +15575,10 @@ R:	Harry Yoo <harry.yoo@oracle.com>
 L:	linux-mm@kvack.org
 S:	Maintained
 F:	include/linux/rmap.h
+F:	include/linux/anon_vma.h
 F:	mm/rmap.c
+F:	mm/anon_vma.c
+F:	mm/anon_vma_internal.c
 
 MEMORY MANAGEMENT - SECRETMEM
 M:	Andrew Morton <akpm@linux-foundation.org>
