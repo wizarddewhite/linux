@@ -38,6 +38,16 @@ static inline int up_write(struct rw_semaphore *sem)
 	return pthread_rwlock_unlock(&sem->lock);
 }
 
+static inline int down_read_trylock(struct rw_semaphore *sem)
+{
+	return pthread_rwlock_tryrdlock(&sem->lock);
+}
+
+static inline int down_write_trylock(struct rw_semaphore *sem)
+{
+	return pthread_rwlock_trywrlock(&sem->lock);
+}
+
 #define down_read_nested(sem, subclass)		down_read(sem)
 #define down_write_nested(sem, subclass)	down_write(sem)
 

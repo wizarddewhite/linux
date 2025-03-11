@@ -41,6 +41,10 @@ struct kmem_cache *kmem_cache_create(const char *name, unsigned int size,
 			unsigned int align, unsigned int flags,
 			void (*ctor)(void *));
 
+#define KMEM_CACHE(__struct, __flags)					\
+	kmem_cache_create(#__struct, sizeof(struct __struct),		\
+		__alignof__(struct __struct), __flags, NULL)
+
 void kmem_cache_free_bulk(struct kmem_cache *cachep, size_t size, void **list);
 int kmem_cache_alloc_bulk(struct kmem_cache *cachep, gfp_t gfp, size_t size,
 			  void **list);
