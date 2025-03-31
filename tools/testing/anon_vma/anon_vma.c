@@ -29,6 +29,7 @@ static struct mm_struct dummy_mm = {
 static int vmas_idx;
 static struct vm_area_struct *vmas[NUM_VMAS];
 static struct kmem_cache *vm_area_cachep;
+struct vm_area_struct *mergeable_vma = NULL;
 
 static void vma_ctor(void *data)
 {
@@ -79,6 +80,7 @@ void cleanup(void)
 	}
 
 	vmas_idx = 0;
+	mergeable_vma = NULL;
 }
 
 static bool test_simple_fault(void)
@@ -408,6 +410,152 @@ static bool test_fork_grand_child(void)
 	return true;
 }
 
+static bool test_mergeable_vma(void)
+{
+	struct vm_area_struct *root_vma, *child_vma, *vma1, *vma2;
+	struct anon_vma_chain *avc;
+	struct anon_vma *root_anon_vma;
+	DECLARE_BITMAP(expected, 10);
+	DECLARE_BITMAP(found, 10);
+
+	bitmap_zero(expected, 10);
+	bitmap_zero(found, 10);
+
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *               \
+	 *                \
+	 *                 \   root_vma
+	 *                  \  +-----------+
+	 *                   > |           |
+	 *                     +-----------+
+	 */
+	root_vma = alloc_vma(0x3000, 0x5000, 3);
+	/* First fault on anonymous vma. */
+	__anon_vma_prepare(root_vma);
+	bitmap_set(expected, root_vma->index, 1);
+	root_anon_vma = root_vma->anon_vma;
+	ASSERT_NE(NULL, root_anon_vma);
+	ASSERT_EQ(1, root_anon_vma->num_active_vmas);
+
+	mergeable_vma = root_vma;
+
+	vma1 = alloc_vma(0x5000, 0x7000, 5);
+	/* First fault on next adjacent anonymous vma. */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *               \
+	 *                \------------------+
+	 *                 \   root_vma       \   vma1
+	 *                  \  +-----------+   \  +-----------+
+	 *                   > |           |    > |           |
+	 *                     +-----------+      +-----------+
+	 */
+	__anon_vma_prepare(vma1);
+	bitmap_set(expected, vma1->index, 1);
+	ASSERT_EQ(vma1->anon_vma, root_anon_vma);
+	ASSERT_EQ(2, root_anon_vma->num_active_vmas);
+
+	vma2 = alloc_vma(0x2000, 0x3000, 2);
+	/* First fault on previous adjacent anonymous vma. */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *               \
+	 *                \------------------+------------------+
+	 *                 \   vma2           \   root_vma       \   vma1
+	 *                  \  +-----------+   \  +-----------+   \  +-----------+
+	 *                   > |           |    > |           |    > |           |
+	 *                     +-----------+      +-----------+      +-----------+
+	 */
+	__anon_vma_prepare(vma2);
+	bitmap_set(expected, vma2->index, 1);
+	ASSERT_EQ(vma2->anon_vma, root_anon_vma);
+	ASSERT_EQ(3, root_anon_vma->num_active_vmas);
+	dump_anon_vma_interval_tree(root_anon_vma);
+
+	anon_vma_interval_tree_foreach(avc, &root_anon_vma->rb_root, 2, 7) {
+		bitmap_set(found, avc->vma->index, 1);
+	}
+	/* Expect to find all vmas in range [2, 7] */
+	ASSERT_TRUE(bitmap_equal(expected, found, 10));
+
+	/* Expect to find only root_vma in range [3, 4] */
+	anon_vma_interval_tree_foreach(avc, &root_anon_vma->rb_root, 3, 4) {
+		ASSERT_EQ(avc->vma, root_vma);
+	}
+
+	/* unmap adjacent vmas before fork */
+	unlink_anon_vmas(vma1);
+	unlink_anon_vmas(vma2);
+	ASSERT_EQ(1, root_anon_vma->num_active_vmas);
+
+	/* Fork a child from root_vma */
+	/*
+	 *  root_anon_vma      root_vma
+	 *  +-----------+      +-----------+
+	 *  |           | ---> |           |
+	 *  +-----------+      +-----------+
+	 *                \
+	 *                 \   child_vma
+	 *                  \  +-----------+
+	 *                   > |           |
+	 *                     +-----------+
+	 */
+	child_vma = alloc_vma(0x3000, 0x5000, 3);
+	anon_vma_fork(child_vma, root_vma);
+	ASSERT_NE(NULL, child_vma->anon_vma);
+	/* Parent/Root is root_vma->anon_vma */
+	ASSERT_EQ(child_vma->anon_vma->parent, root_vma->anon_vma);
+	ASSERT_EQ(child_vma->anon_vma->root, root_vma->anon_vma);
+
+	mergeable_vma = child_vma;
+
+	vma1 = alloc_vma(0x5000, 0x7000, 5);
+	/* First fault on next adjacent anonymous vma in child. */
+	/*
+	 *  vma1->anon_vma     vma1
+	 *  +-----------+      +-----------+
+	 *  |           | ---> |           |
+	 *  +-----------+      +-----------+
+	 */
+	__anon_vma_prepare(vma1);
+	ASSERT_NE(vma1->anon_vma, child_vma->anon_vma);
+	ASSERT_EQ(1, child_vma->anon_vma->num_active_vmas);
+	ASSERT_EQ(1, root_anon_vma->num_active_vmas);
+
+	vma2 = alloc_vma(0x2000, 0x3000, 2);
+	/* First fault on previous adjacent anonymous vma in child. */
+	/*
+	 *  vma2->anon_vma     vma2
+	 *  +-----------+      +-----------+
+	 *  |           | ---> |           |
+	 *  +-----------+      +-----------+
+	 */
+	__anon_vma_prepare(vma2);
+	ASSERT_NE(vma2->anon_vma, child_vma->anon_vma);
+	ASSERT_EQ(1, child_vma->anon_vma->num_active_vmas);
+	ASSERT_EQ(1, root_anon_vma->num_active_vmas);
+
+	/* Expect to find only 'child_vma' in range [2, 7] */
+	anon_vma_interval_tree_foreach(avc, &child_vma->anon_vma->rb_root, 2, 7) {
+		ASSERT_EQ(avc->vma, child_vma);
+	}
+
+	cleanup();
+
+	ASSERT_EQ(0, nr_allocated);
+	return true;
+}
+
 int main(void)
 {
 	int num_tests = 0, num_fail = 0;
@@ -428,6 +576,7 @@ int main(void)
 	TEST(simple_fork);
 	TEST(fork_two);
 	TEST(fork_grand_child);
+	TEST(mergeable_vma);
 
 #undef TEST
 
