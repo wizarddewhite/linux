@@ -556,6 +556,146 @@ static bool test_mergeable_vma(void)
 	return true;
 }
 
+static bool test_reuse_anon_vma(void)
+{
+	struct vm_area_struct *root_vma, *vma, *vma1, *vma2;
+	struct anon_vma *root_anon_vma, *reused_anon_vma;
+	struct anon_vma_chain *avc;
+
+	/*
+	 *  root_anon_vma      root_vma
+	 *  +-----------+      +-----------+
+	 *  |           | ---> |         av| = root_anon_vma
+	 *  +-----------+      +-----------+
+	 */
+	root_vma = alloc_vma(0x3000, 0x5000, 3);
+	__anon_vma_prepare(root_vma);
+	root_anon_vma = root_vma->anon_vma;
+	ASSERT_NE(NULL, root_anon_vma);
+	ASSERT_EQ(1, root_anon_vma->num_active_vmas);
+
+	/* First fork */
+	/*
+	 *  root_anon_vma      root_vma
+	 *  +-----------+      +-----------+
+	 *  |           | ---> |         av| = root_anon_vma
+	 *  +-----------+      +-----------+
+	 *                \
+	 *                 \   vma
+	 *                  \  +-----------+
+	 *                   > |         av| != root_anon_vma
+	 *                     +-----------+
+	 */
+	vma = alloc_vma(0x3000, 0x5000, 3);
+	anon_vma_fork(vma, root_vma);
+	ASSERT_NE(NULL, vma->anon_vma);
+	/* Parent/Root is root_vma->anon_vma */
+	ASSERT_EQ(vma->anon_vma->parent, root_vma->anon_vma);
+	ASSERT_EQ(vma->anon_vma->root, root_vma->anon_vma);
+
+	/* unlink the root */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *                \
+	 *                 \   vma
+	 *                  \  +-----------+
+	 *                   > |         av| != root_anon_vma
+	 *                     +-----------+
+	 */
+	unlink_anon_vmas(root_vma);
+	ASSERT_EQ(0, root_anon_vma->num_active_vmas);
+
+	/* Fork grand child from vma */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *                \
+	 *                |\   vma
+	 *                | \  +-----------+
+	 *                |  > |         av| != root_anon_vma
+	 *                |    +-----------+
+	 *                \
+	 *                 \   vma1
+	 *                  \  +-----------+
+	 *                   > |         av| != root_anon_vma
+	 *                     +-----------+
+	 */
+	vma1 = alloc_vma(0x3000, 0x5000, 3);
+	anon_vma_fork(vma1, vma);
+	ASSERT_NE(NULL, vma1->anon_vma);
+	/* Root is root_anon_vma */
+	ASSERT_EQ(vma1->anon_vma->root, root_anon_vma);
+	/* Parent is vma1->anon_vma */
+	ASSERT_EQ(vma1->anon_vma->parent, vma->anon_vma);
+	/* vma1->anon_vma != root_anon_vma, since we don't reuse root */
+	ASSERT_NE(vma1->anon_vma, root_anon_vma);
+
+	/* unlink vma */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *                \
+	 *                |
+	 *                \
+	 *                 \   vma1
+	 *                  \  +-----------+
+	 *                   > |         av| != root_anon_vma
+	 *                     +-----------+
+	 */
+	reused_anon_vma = vma->anon_vma;
+	unlink_anon_vmas(vma);
+	ASSERT_EQ(0, reused_anon_vma->num_active_vmas);
+
+	/* Fork from vma1 */
+	/*
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *                \
+	 *                |
+	 *                \
+	 *                |\   vma1
+	 *                | \  +-----------+
+	 *                |  > |         av| != root_anon_vma
+	 *                |    +-----------+
+	 *                \
+	 *                 \   vma2
+	 *                  \  +-----------+
+	 *                   > |         av| == reused_anon_vma
+	 *                     +-----------+
+	 */
+	vma2 = alloc_vma(0x3000, 0x5000, 3);
+	anon_vma_fork(vma2, vma1);
+	ASSERT_NE(NULL, vma2->anon_vma);
+	/* Root is root_vma->anon_vma */
+	ASSERT_EQ(vma2->anon_vma->root, root_anon_vma);
+	/* vma->anon_vma (reused_anon_vma) is reused here */
+	ASSERT_EQ(vma2->anon_vma, reused_anon_vma);
+
+	/* Expect to find vma1 and vma2 in reused_anon_vma */
+	anon_vma_interval_tree_foreach(avc, &reused_anon_vma->rb_root, 3, 4) {
+		ASSERT_TRUE(avc->vma == vma1 || avc->vma == vma2);
+	}
+
+	/* Expect to find vma1 and vma2 in root_anon_vma */
+	anon_vma_interval_tree_foreach(avc, &root_anon_vma->rb_root, 3, 4) {
+		ASSERT_TRUE(avc->vma == vma1 || avc->vma == vma2);
+	}
+
+	cleanup();
+
+	ASSERT_EQ(0, nr_allocated);
+	return true;
+}
+
 int main(void)
 {
 	int num_tests = 0, num_fail = 0;
@@ -577,6 +717,7 @@ int main(void)
 	TEST(fork_two);
 	TEST(fork_grand_child);
 	TEST(mergeable_vma);
+	TEST(reuse_anon_vma);
 
 #undef TEST
 
