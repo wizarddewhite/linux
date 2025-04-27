@@ -558,7 +558,7 @@ static bool test_mergeable_vma(void)
 
 static bool test_reuse_anon_vma(void)
 {
-	struct vm_area_struct *root_vma, *vma, *vma1, *vma2;
+	struct vm_area_struct *root_vma, *vma, *vma1, *vma2, *vma3;
 	struct anon_vma *root_anon_vma, *reused_anon_vma;
 	struct anon_vma_chain *avc;
 
@@ -689,6 +689,51 @@ static bool test_reuse_anon_vma(void)
 	anon_vma_interval_tree_foreach(avc, &root_anon_vma->rb_root, 3, 4) {
 		ASSERT_TRUE(avc->vma == vma1 || avc->vma == vma2);
 	}
+
+	/* Fork from vma2 */
+	/*
+	 * When commit 7a3ef208e662 ("mm: prevent endless growth of anon_vma
+	 * hierarchy") introduce anon_vma reuse, it embedded an issue of
+	 * double-reuse.
+	 *
+	 * It happens when vma2 reuse an existing anon_vma and we fork from
+	 * vma2 later. Before commit 2555283eb40d ("mm/rmap: Fix
+	 * anon_vma->degree ambiguity leading to double-reuse"), the forked
+	 * vma3 would reuse vma1->anon_vma, which is already in use.
+	 *
+	 * The following case assert vma1->anon_vma will not double-reuse.
+	 *
+	 *  root_anon_vma
+	 *  +-----------+
+	 *  |           |
+	 *  +-----------+
+	 *                \
+	 *                |
+	 *                \
+	 *                |\   vma1
+	 *                | \  +-----------+
+	 *                |  > |         av| != root_anon_vma
+	 *                |    +-----------+
+	 *                \
+	 *                |\   vma2
+	 *                | \  +-----------+
+	 *                |  > |         av| == reused_anon_vma
+	 *                |    +-----------+
+	 *                \
+	 *                 \   vma3
+	 *                  \  +-----------+
+	 *                   > |         av| != vma1->anon_vma
+	 *                     +-----------+
+	 */
+	/* vma1->anon_vma already has active vma */
+	ASSERT_NE(NULL, vma1->anon_vma);
+	vma3 = alloc_vma(0x3000, 0x5000, 3);
+	anon_vma_fork(vma3, vma2);
+	ASSERT_NE(NULL, vma3->anon_vma);
+	/* Root is root_vma->anon_vma */
+	ASSERT_EQ(vma3->anon_vma->root, root_anon_vma);
+	/* vma1->anon_vma is NOT reused here */
+	ASSERT_NE(vma3->anon_vma, vma1->anon_vma);
 
 	cleanup();
 
