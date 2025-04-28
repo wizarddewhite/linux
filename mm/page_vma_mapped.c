@@ -16,66 +16,22 @@ static inline bool not_found(struct page_vma_mapped_walk *pvmw)
 static bool map_pte(struct page_vma_mapped_walk *pvmw, pmd_t *pmdvalp,
 		    spinlock_t **ptlp)
 {
-	pte_t ptent;
-
 	if (pvmw->flags & PVMW_SYNC) {
 		/* Use the stricter lookup */
 		pvmw->pte = pte_offset_map_lock(pvmw->vma->vm_mm, pvmw->pmd,
 						pvmw->address, &pvmw->ptl);
-		return !!pvmw->pte;
-	}
-
-again:
-	/*
-	 * It is important to return the ptl corresponding to pte,
-	 * in case *pvmw->pmd changes underneath us; so we need to
-	 * return it even when choosing not to lock, in case caller
-	 * proceeds to loop over next ptes, and finds a match later.
-	 * Though, in most cases, page lock already protects this.
-	 */
-	pvmw->pte = pte_offset_map_rw_nolock(pvmw->vma->vm_mm, pvmw->pmd,
-					     pvmw->address, pmdvalp, ptlp);
-	if (!pvmw->pte)
-		return false;
-
-	ptent = ptep_get(pvmw->pte);
-
-	if (pvmw->flags & PVMW_MIGRATION) {
-		if (!is_swap_pte(ptent))
-			return false;
-	} else if (is_swap_pte(ptent)) {
-		swp_entry_t entry;
+	} else {
 		/*
-		 * Handle un-addressable ZONE_DEVICE memory.
-		 *
-		 * We get here when we are trying to unmap a private
-		 * device page from the process address space. Such
-		 * page is not CPU accessible and thus is mapped as
-		 * a special swap entry, nonetheless it still does
-		 * count as a valid regular mapping for the page
-		 * (and is accounted as such in page maps count).
-		 *
-		 * So handle this special case as if it was a normal
-		 * page mapping ie lock CPU page table and return true.
-		 *
-		 * For more details on device private memory see HMM
-		 * (include/linux/hmm.h or mm/hmm.c).
+		 * It is important to return the ptl corresponding to pte,
+		 * in case *pvmw->pmd changes underneath us; so we need to
+		 * return it even when choosing not to lock, in case caller
+		 * proceeds to loop over next ptes, and finds a match later.
+		 * Though, in most cases, page lock already protects this.
 		 */
-		entry = pte_to_swp_entry(ptent);
-		if (!is_device_private_entry(entry) &&
-		    !is_device_exclusive_entry(entry))
-			return false;
-	} else if (!pte_present(ptent)) {
-		return false;
+		pvmw->pte = pte_offset_map_rw_nolock(pvmw->vma->vm_mm, pvmw->pmd,
+						pvmw->address, pmdvalp, ptlp);
 	}
-	spin_lock(*ptlp);
-	if (unlikely(!pmd_same(*pmdvalp, pmdp_get_lockless(pvmw->pmd)))) {
-		pte_unmap_unlock(pvmw->pte, *ptlp);
-		goto again;
-	}
-	pvmw->ptl = *ptlp;
-
-	return true;
+	return !!pvmw->pte;
 }
 
 /**
@@ -118,7 +74,21 @@ static bool check_pte(struct page_vma_mapped_walk *pvmw, unsigned long pte_nr)
 	} else if (is_swap_pte(ptent)) {
 		swp_entry_t entry;
 
-		/* Handle un-addressable ZONE_DEVICE memory */
+		/* Handle un-addressable ZONE_DEVICE memory.
+		 *
+		 * We get here when we are trying to unmap a private
+		 * device page from the process address space. Such
+		 * page is not CPU accessible and thus is mapped as
+		 * a special swap entry, nonetheless it still does
+		 * count as a valid regular mapping for the page
+		 * (and is accounted as such in page maps count).
+		 *
+		 * So handle this special case as if it was a normal
+		 * page mapping ie lock CPU page table and return true.
+		 *
+		 * For more details on device private memory see HMM
+		 * (include/linux/hmm.h or mm/hmm.c).
+		 */
 		entry = pte_to_swp_entry(ptent);
 		if (!is_device_private_entry(entry) &&
 		    !is_device_exclusive_entry(entry))
@@ -288,14 +258,27 @@ restart:
 			step_forward(pvmw, PMD_SIZE);
 			continue;
 		}
-		if (!map_pte(pvmw, &pmde, &ptl)) {
-			if (!pvmw->pte)
-				goto restart;
-			goto next_pte;
-		}
+		if (!map_pte(pvmw, &pmde, &ptl))
+			goto restart;
 this_pte:
-		if (check_pte(pvmw, 1))
+		if (check_pte(pvmw, 1)) {
+			/* The ptl already locked, the result is valid. */
+			if (pvmw->ptl)
+				return true;
+
+			/*
+			 * If we haven't locked ptl, grab it and check if
+			 * *pvmw->pmd has changed underneath us.
+			 */
+			spin_lock(ptl);
+			if (unlikely(!pmd_same(pmde, pmdp_get_lockless(pvmw->pmd)))) {
+				pte_unmap_unlock(pvmw->pte, ptl);
+				pvmw->pte = NULL;
+				goto restart;
+			}
+			pvmw->ptl = ptl;
 			return true;
+		}
 next_pte:
 		do {
 			pvmw->address += PAGE_SIZE;
@@ -314,15 +297,6 @@ next_pte:
 			pvmw->pte++;
 		} while (pte_none(ptep_get(pvmw->pte)));
 
-		if (!pvmw->ptl) {
-			spin_lock(ptl);
-			if (unlikely(!pmd_same(pmde, pmdp_get_lockless(pvmw->pmd)))) {
-				pte_unmap_unlock(pvmw->pte, ptl);
-				pvmw->pte = NULL;
-				goto restart;
-			}
-			pvmw->ptl = ptl;
-		}
 		goto this_pte;
 	} while (pvmw->address < end);
 
