@@ -647,6 +647,26 @@ static pageout_t writeout(struct folio *folio, struct address_space *mapping,
 	return PAGE_SUCCESS;
 }
 
+static inline int is_page_cache_freeable(struct folio *folio)
+{
+	const int order = folio_order(folio);
+	int ref_count = 0;
+
+	/*
+	 * A freeable page cache folio is referenced only by the caller
+	 * that isolated the folio, the page cache and optional filesystem
+	 * private data at folio->private.
+	 */
+	ref_count += folio_test_swapcache(folio) << order;
+
+	if (!folio_test_anon(folio)) {
+		ref_count += !!folio->mapping << order;
+		ref_count += folio_test_private(folio);
+	}
+
+	return folio_ref_count(folio) == ref_count + 1;
+}
+
 /*
  * pageout is called by shrink_folio_list() for each dirty folio.
  */
@@ -670,8 +690,11 @@ static pageout_t pageout(struct folio *folio, struct address_space *mapping,
 	 * A freeable shmem or swapcache folio is referenced only by the
 	 * caller that isolated the folio and the page cache.
 	 */
-	if (folio_ref_count(folio) != 1 + folio_nr_pages(folio) || !mapping)
-		return PAGE_KEEP;
+	if (folio_ref_count(folio) != 1 + folio_nr_pages(folio) || !mapping) {
+		if (shmem_mapping)
+			printk_once("we get shmem after filtering\n");
+		return PAGE_KEEP; // confused for shmem refcount
+	}
 	if (!shmem_mapping(mapping) && !folio_test_anon(folio))
 		return PAGE_ACTIVATE;
 	if (!folio_clear_dirty_for_io(folio))
