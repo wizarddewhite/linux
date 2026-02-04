@@ -2994,7 +2994,7 @@ static void __split_huge_zero_page_pmd(struct vm_area_struct *vma,
 	pmd_populate(mm, pmd, pgtable);
 }
 
-static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
+static bool __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		unsigned long haddr, bool freeze)
 {
 	struct mm_struct *mm = vma->vm_mm;
@@ -3003,7 +3003,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 	pgtable_t pgtable;
 	pmd_t old_pmd, _pmd;
 	bool soft_dirty, uffd_wp = false, young = false, write = false;
-	bool anon_exclusive = false, dirty = false;
+	bool anon_exclusive = false, dirty = false, ret = true;
 	unsigned long addr;
 	pte_t *pte;
 	int i;
@@ -3025,13 +3025,13 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		if (arch_needs_pgtable_deposit())
 			zap_deposited_table(mm, pmd);
 		if (vma_is_special_huge(vma))
-			return;
+			return ret;
 		if (unlikely(pmd_is_migration_entry(old_pmd))) {
 			const softleaf_t old_entry = softleaf_from_pmd(old_pmd);
 
 			folio = softleaf_to_folio(old_entry);
 		} else if (is_huge_zero_pmd(old_pmd)) {
-			return;
+			return ret;
 		} else {
 			page = pmd_page(old_pmd);
 			folio = page_folio(page);
@@ -3043,7 +3043,7 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 			folio_put(folio);
 		}
 		add_mm_counter(mm, mm_counter_file(folio), -HPAGE_PMD_NR);
-		return;
+		return ret;
 	}
 
 	if (is_huge_zero_pmd(*pmd)) {
@@ -3056,7 +3056,8 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		 * small page also write protected so it does not seems useful
 		 * to invalidate secondary mmu at this time.
 		 */
-		return __split_huge_zero_page_pmd(vma, haddr, pmd);
+		__split_huge_zero_page_pmd(vma, haddr, pmd);
+		return ret;
 	}
 
 	if (pmd_is_migration_entry(*pmd)) {
@@ -3095,8 +3096,10 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		 * folio handling and anon_exclusive below.
 		 */
 		if (freeze && anon_exclusive &&
-		    folio_try_share_anon_rmap_pmd(folio, page))
+		    folio_try_share_anon_rmap_pmd(folio, page)) {
+			ret = false;
 			freeze = false;
+		}
 		if (!freeze) {
 			rmap_t rmap_flags = RMAP_NONE;
 
@@ -3163,8 +3166,10 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		 */
 		anon_exclusive = PageAnonExclusive(page);
 		if (freeze && anon_exclusive &&
-		    folio_try_share_anon_rmap_pmd(folio, page))
+		    folio_try_share_anon_rmap_pmd(folio, page)) {
+			ret = false;
 			freeze = false;
+		}
 		if (!freeze) {
 			rmap_t rmap_flags = RMAP_NONE;
 
@@ -3273,14 +3278,17 @@ static void __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 
 	smp_wmb(); /* make pte visible before pmd */
 	pmd_populate(mm, pmd, pgtable);
+	return ret;
 }
 
-void split_huge_pmd_locked(struct vm_area_struct *vma, unsigned long address,
+bool split_huge_pmd_locked(struct vm_area_struct *vma, unsigned long address,
 			   pmd_t *pmd, bool freeze)
 {
 	VM_WARN_ON_ONCE(!IS_ALIGNED(address, HPAGE_PMD_SIZE));
 	if (pmd_trans_huge(*pmd) || pmd_is_valid_softleaf(*pmd))
-		__split_huge_pmd_locked(vma, pmd, address, freeze);
+		return __split_huge_pmd_locked(vma, pmd, address, freeze);
+	else
+		return false;
 }
 
 void __split_huge_pmd(struct vm_area_struct *vma, pmd_t *pmd,
