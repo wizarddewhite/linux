@@ -4742,9 +4742,11 @@ static int split_huge_pages_pid(int pid, unsigned long vaddr_start,
 	for (addr = vaddr_start; addr < vaddr_end; addr += PAGE_SIZE) {
 		struct vm_area_struct *vma = vma_lookup(mm, addr);
 		struct folio_walk fw;
-		struct folio *folio;
+		struct folio *folio, *folio2;
+		struct page *lockat;
 		struct address_space *mapping;
 		unsigned int target_order = new_order;
+		LIST_HEAD(split_folios);
 
 		if (!vma)
 			break;
@@ -4781,32 +4783,41 @@ static int split_huge_pages_pid(int pid, unsigned long vaddr_start,
 		    folio_expected_ref_count(folio) != folio_ref_count(folio))
 			goto next;
 
-		if (!folio_trylock(folio))
+		if (!folio_isolate_lru(folio))
 			goto next;
-		folio_get(folio);
-		folio_walk_end(&fw, vma);
 
 		if (!folio_test_anon(folio) && folio->mapping != mapping)
-			goto unlock;
+			goto putback;
+
+		folio_lock(folio);
+		folio_walk_end(&fw, vma);
+		lockat = folio_page(folio, 0);
 
 		if (in_folio_offset < 0 ||
 		    in_folio_offset >= folio_nr_pages(folio)) {
-			if (!split_folio_to_order(folio, target_order))
+			lockat = folio_page(folio, 0);
+			if (!split_huge_page_to_list_to_order(lockat, &split_folios, target_order))
 				split++;
 		} else {
 			struct page *split_at = folio_page(folio,
 							   in_folio_offset);
-			if (!folio_split(folio, target_order, split_at, NULL))
+			if (!folio_split(folio, target_order, split_at, &split_folios))
 				split++;
 		}
 
-unlock:
+		list_add_tail(&folio->lru, &split_folios);
+		folio_unlock(page_folio(lockat));
 
-		folio_unlock(folio);
-		folio_put(folio);
+		list_for_each_entry_safe(folio, folio2, &split_folios, lru) {
+			list_del(&folio->lru);
+			folio_putback_lru(folio);
+		}
 
 		cond_resched();
 		continue;
+
+putback:
+		folio_putback_lru(folio);
 next:
 		folio_walk_end(&fw, vma);
 		cond_resched();
