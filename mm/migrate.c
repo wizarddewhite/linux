@@ -705,7 +705,7 @@ static int __folio_migrate_mapping(struct address_space *mapping,
 	 * to one less reference.
 	 * We know this isn't the last reference.
 	 */
-	folio_ref_unfreeze(folio, expected_count - nr);
+	folio_ref_unfreeze(folio, expected_count - nr); // how about private ref
 
 	/* Leave irq disabled to prevent preemption while updating stats */
 	if (ci)
