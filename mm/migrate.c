@@ -340,6 +340,52 @@ struct rmap_walk_arg {
 	bool map_unused_to_zeropage;
 };
 
+static inline unsigned int folio_migration_batch(struct folio *folio,
+			struct page_vma_mapped_walk *pvmw, pte_t pte,
+			unsigned long idx)
+{
+	unsigned long end_addr, addr = pvmw->address;
+	struct vm_area_struct *vma = pvmw->vma;
+	unsigned int max_nr, nr;
+	pte_t expected_pte, pteval;
+
+
+#ifdef CONFIG_HUGETLB_PAGE
+	if (folio_test_hugetlb(folio))
+		return 1;
+#endif
+
+#ifdef CONFIG_HUGETLB_PAGE
+	if (folio_test_hugetlb(folio))
+		return 1;
+#endif
+	if (!folio_test_large(folio))
+		return 1;
+
+	if (!folio_test_anon(folio))
+		return 1;
+
+	/* We may only batch within a single VMA and a single page table. */
+	end_addr = pmd_addr_end(addr, vma->vm_end);
+	max_nr = (end_addr - addr) >> PAGE_SHIFT;
+	/* Limit max_nr to the actual remaining PFNs in the folio we could batch. */
+	max_nr = min_t(unsigned long, max_nr, folio_nr_pages(folio) - idx);
+
+	nr = 1;
+
+	while (nr < max_nr) {
+		pteval = ptep_get(pvmw->pte + nr);
+		expected_pte = swp_entry_advance_pfn(pte, nr);
+
+		if (!pte_same(pteval, expected_pte))
+			break;
+
+		nr++;
+	}
+
+	return nr;
+}
+
 /*
  * Restore a potential migration pte to a working pte entry
  */
@@ -355,7 +401,7 @@ static bool remove_migration_pte(struct folio *folio,
 		pte_t pte;
 		softleaf_t entry;
 		struct page *new;
-		unsigned long idx = 0;
+		unsigned long nr_pages = 1, idx = 0;
 
 		/* pgoff is invalid for ksm pages, but they are never large */
 		if (folio_test_large(folio) && !folio_test_hugetlb(folio))
@@ -378,6 +424,7 @@ static bool remove_migration_pte(struct folio *folio,
 
 		folio_get(folio);
 		pte = mk_pte(new, READ_ONCE(vma->vm_page_prot));
+		nr_pages = folio_migration_batch(folio, &pvmw, old_pte, idx);
 
 		entry = softleaf_from_pte(old_pte);
 		if (!softleaf_is_migration_young(entry))
@@ -429,11 +476,11 @@ static bool remove_migration_pte(struct folio *folio,
 #endif
 		{
 			if (folio_test_anon(folio))
-				folio_add_anon_rmap_pte(folio, new, vma,
+				folio_add_anon_rmap_ptes(folio, new, nr_pages, vma,
 							pvmw.address, rmap_flags);
 			else
 				folio_add_file_rmap_pte(folio, new, vma);
-			set_pte_at(vma->vm_mm, pvmw.address, pvmw.pte, pte);
+			set_ptes(vma->vm_mm, pvmw.address, pvmw.pte, pte, nr_pages);
 		}
 		if (READ_ONCE(vma->vm_flags) & VM_LOCKED)
 			mlock_drain_local();
@@ -443,6 +490,14 @@ static bool remove_migration_pte(struct folio *folio,
 
 		/* No need to invalidate - it was non-present before */
 		update_mmu_cache(vma, pvmw.address, pvmw.pte);
+
+		if (nr_pages == folio_nr_pages(folio)) {
+			page_vma_mapped_walk_done(&pvmw);
+			break;
+		}
+
+		pvmw.pte += nr_pages - 1;
+		pvmw.address += (nr_pages - 1) * PAGE_SIZE;
 	}
 
 	return true;
