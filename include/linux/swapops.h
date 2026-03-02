@@ -119,6 +119,32 @@ static inline pte_t swp_entry_to_pte(swp_entry_t entry)
 	return __swp_entry_to_pte(arch_entry);
 }
 
+static inline pte_t swp_entry_advance_pfn(pte_t pteval, unsigned long nr)
+{
+	pte_t pte;
+	swp_entry_t swp_entry;
+	bool soft_dirty = false, uffd_wp = false;
+
+	if (pte_swp_soft_dirty(pteval))
+		soft_dirty = true;
+
+	if (pte_swp_uffd_wp(pteval))
+		uffd_wp = true;
+
+	swp_entry = __pte_to_swp_entry(pteval);
+	swp_entry = __swp_entry(__swp_type(swp_entry),
+			__swp_offset(swp_entry) + nr);
+	pte = __swp_entry_to_pte(swp_entry);
+
+	if (soft_dirty)
+		pte = pte_swp_mksoft_dirty(pte);
+	if (uffd_wp)
+		pte = pte_swp_mkuffd_wp(pte);
+
+	return pte;
+}
+#define swp_entry_next_pfn(pte) swp_entry_advance_pfn(pte, 1)
+
 static inline swp_entry_t radix_to_swp_entry(void *arg)
 {
 	swp_entry_t entry;
