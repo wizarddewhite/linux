@@ -3292,27 +3292,26 @@ static bool __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 		pte_t entry;
 		swp_entry_t swp_entry;
 
-		for (i = 0, addr = haddr; i < HPAGE_PMD_NR; i++, addr += PAGE_SIZE) {
-			if (write)
-				swp_entry = make_writable_migration_entry(
-							page_to_pfn(page + i));
-			else if (anon_exclusive)
-				swp_entry = make_readable_exclusive_migration_entry(
-							page_to_pfn(page + i));
-			else
-				swp_entry = make_readable_migration_entry(
-							page_to_pfn(page + i));
-			if (young)
-				swp_entry = make_migration_entry_young(swp_entry);
-			if (dirty)
-				swp_entry = make_migration_entry_dirty(swp_entry);
-			entry = swp_entry_to_pte(swp_entry);
-			if (soft_dirty)
-				entry = pte_swp_mksoft_dirty(entry);
-			if (uffd_wp)
-				entry = pte_swp_mkuffd_wp(entry);
+		if (write)
+			swp_entry = make_writable_migration_entry(page_to_pfn(page));
+		else if (anon_exclusive)
+			swp_entry = make_readable_exclusive_migration_entry(page_to_pfn(page));
+		else
+			swp_entry = make_readable_migration_entry(page_to_pfn(page));
+		if (young)
+			swp_entry = make_migration_entry_young(swp_entry);
+		if (dirty)
+			swp_entry = make_migration_entry_dirty(swp_entry);
+		entry = swp_entry_to_pte(swp_entry);
+		if (soft_dirty)
+			entry = pte_swp_mksoft_dirty(entry);
+		if (uffd_wp)
+			entry = pte_swp_mkuffd_wp(entry);
+
+		for (i = 0; i < HPAGE_PMD_NR; i++) {
 			VM_WARN_ON(!pte_none(ptep_get(pte + i)));
 			set_pte_at(mm, addr, pte + i, entry);
+			entry = swp_entry_next_pfn(entry);
 		}
 	} else if (pmd_is_device_private_entry(old_pmd)) {
 		pte_t entry;
