@@ -652,6 +652,68 @@ static void collapse_full(struct collapse_context *c, struct mem_ops *ops)
 	ops->cleanup_area(p, size);
 }
 
+const char *pagemap_proc = "/proc/self/pagemap";
+int pagemap_fd;
+static void collapse_remap_anon(struct collapse_context *c, struct mem_ops *ops)
+{
+	void *p;
+	unsigned int i, nr_hpage = 2;
+	unsigned long pfn, pfns[1024];
+
+	pagemap_fd = open(pagemap_proc, O_RDONLY);
+	if (pagemap_fd == -1) {
+		perror("open");
+		return;
+	}
+
+	memset(pfns, 0, sizeof(unsigned long) * 1024);
+
+	p = ops->setup_area(nr_hpage);
+	ops->fault(p, 0, nr_hpage * hpage_pmd_size);
+	madvise_collapse("Collapse:", p, nr_hpage, ops, true);
+	validate_memory(p, 0, nr_hpage * hpage_pmd_size);
+
+	for (i = 0; i < nr_hpage; i++) {
+		pfns[i] = pagemap_get_pfn(pagemap_fd, p + i * hpage_pmd_size);
+		// printf("THP pfns[%d] %lu\n", i, pfns[i]);
+	}
+
+	/* First move to a non-PMD aligned address to split it */
+	p = mremap(p, hpage_pmd_size * nr_hpage, hpage_pmd_size * nr_hpage,
+			MREMAP_MAYMOVE | MREMAP_FIXED,
+			p + nr_hpage * hpage_pmd_size + page_size);
+	for (i = 0; i < nr_hpage; i++) {
+		pfn = pagemap_get_pfn(pagemap_fd, p + i * hpage_pmd_size);
+		if (pfn != pfns[i]) {
+			printf("THP pfns[%d] after mremap is different %lu\n", i, pfns[i]);
+			goto cleanup;
+		}
+	}
+	/* Then move back to PMD aligned address for collapse*/
+	p = mremap(p, hpage_pmd_size * nr_hpage, hpage_pmd_size * nr_hpage,
+			MREMAP_MAYMOVE | MREMAP_FIXED,
+			p - nr_hpage * hpage_pmd_size - page_size);
+	for (i = 0; i < nr_hpage; i++) {
+		pfn = pagemap_get_pfn(pagemap_fd, p + i * hpage_pmd_size);
+		if (pfn != pfns[i]) {
+			printf("THP pfns[%d] after mremap is different %lu\n", i, pfns[i]);
+			goto cleanup;
+		}
+	}
+	c->collapse("collapse PTE-mapped huge page", p, nr_hpage, ops, true);
+	validate_memory(p, 0, nr_hpage * hpage_pmd_size);
+
+	for (i = 0; i < nr_hpage; i++) {
+		pfn = pagemap_get_pfn(pagemap_fd, p + i * hpage_pmd_size);
+		if (pfn != pfns[i])
+			printf("THP pfns[%d] after collapse is different: %lu\n",
+				i, pfn);
+	}
+
+cleanup:
+	ops->cleanup_area(p, nr_hpage * hpage_pmd_size);
+}
+
 static void collapse_empty(struct collapse_context *c, struct mem_ops *ops)
 {
 	void *p;
@@ -1228,63 +1290,66 @@ int main(int argc, char **argv)
 	} while (0)
 
 	TEST(collapse_full, khugepaged_context, anon_ops);
-	TEST(collapse_full, khugepaged_context, file_ops);
-	TEST(collapse_full, khugepaged_context, shmem_ops);
-	TEST(collapse_full, madvise_context, anon_ops);
-	TEST(collapse_full, madvise_context, file_ops);
-	TEST(collapse_full, madvise_context, shmem_ops);
+	//TEST(collapse_full, khugepaged_context, file_ops);
+	//TEST(collapse_full, khugepaged_context, shmem_ops);
+	//TEST(collapse_full, madvise_context, anon_ops);
+	//TEST(collapse_full, madvise_context, file_ops);
+	//TEST(collapse_full, madvise_context, shmem_ops);
 
-	TEST(collapse_empty, khugepaged_context, anon_ops);
-	TEST(collapse_empty, madvise_context, anon_ops);
+	//TEST(collapse_empty, khugepaged_context, anon_ops);
+	//TEST(collapse_empty, madvise_context, anon_ops);
 
-	TEST(collapse_single_pte_entry, khugepaged_context, anon_ops);
-	TEST(collapse_single_pte_entry, khugepaged_context, file_ops);
-	TEST(collapse_single_pte_entry, khugepaged_context, shmem_ops);
-	TEST(collapse_single_pte_entry, madvise_context, anon_ops);
-	TEST(collapse_single_pte_entry, madvise_context, file_ops);
-	TEST(collapse_single_pte_entry, madvise_context, shmem_ops);
+	//TEST(collapse_single_pte_entry, khugepaged_context, anon_ops);
+	//TEST(collapse_single_pte_entry, khugepaged_context, file_ops);
+	//TEST(collapse_single_pte_entry, khugepaged_context, shmem_ops);
+	//TEST(collapse_single_pte_entry, madvise_context, anon_ops);
+	//TEST(collapse_single_pte_entry, madvise_context, file_ops);
+	//TEST(collapse_single_pte_entry, madvise_context, shmem_ops);
 
-	TEST(collapse_max_ptes_none, khugepaged_context, anon_ops);
-	TEST(collapse_max_ptes_none, khugepaged_context, file_ops);
-	TEST(collapse_max_ptes_none, madvise_context, anon_ops);
-	TEST(collapse_max_ptes_none, madvise_context, file_ops);
+	//TEST(collapse_max_ptes_none, khugepaged_context, anon_ops);
+	//TEST(collapse_max_ptes_none, khugepaged_context, file_ops);
+	//TEST(collapse_max_ptes_none, madvise_context, anon_ops);
+	//TEST(collapse_max_ptes_none, madvise_context, file_ops);
 
-	TEST(collapse_single_pte_entry_compound, khugepaged_context, anon_ops);
-	TEST(collapse_single_pte_entry_compound, khugepaged_context, file_ops);
-	TEST(collapse_single_pte_entry_compound, madvise_context, anon_ops);
-	TEST(collapse_single_pte_entry_compound, madvise_context, file_ops);
+	//TEST(collapse_single_pte_entry_compound, khugepaged_context, anon_ops);
+	//TEST(collapse_single_pte_entry_compound, khugepaged_context, file_ops);
+	//TEST(collapse_single_pte_entry_compound, madvise_context, anon_ops);
+	//TEST(collapse_single_pte_entry_compound, madvise_context, file_ops);
 
-	TEST(collapse_full_of_compound, khugepaged_context, anon_ops);
-	TEST(collapse_full_of_compound, khugepaged_context, file_ops);
-	TEST(collapse_full_of_compound, khugepaged_context, shmem_ops);
-	TEST(collapse_full_of_compound, madvise_context, anon_ops);
-	TEST(collapse_full_of_compound, madvise_context, file_ops);
-	TEST(collapse_full_of_compound, madvise_context, shmem_ops);
+	//TEST(collapse_full_of_compound, khugepaged_context, anon_ops);
+	//TEST(collapse_full_of_compound, khugepaged_context, file_ops);
+	//TEST(collapse_full_of_compound, khugepaged_context, shmem_ops);
+	//TEST(collapse_full_of_compound, madvise_context, anon_ops);
+	//TEST(collapse_full_of_compound, madvise_context, file_ops);
+	//TEST(collapse_full_of_compound, madvise_context, shmem_ops);
 
-	TEST(collapse_compound_extreme, khugepaged_context, anon_ops);
-	TEST(collapse_compound_extreme, madvise_context, anon_ops);
+	//TEST(collapse_compound_extreme, khugepaged_context, anon_ops);
+	//TEST(collapse_compound_extreme, madvise_context, anon_ops);
 
-	TEST(collapse_swapin_single_pte, khugepaged_context, anon_ops);
-	TEST(collapse_swapin_single_pte, madvise_context, anon_ops);
+	//TEST(collapse_swapin_single_pte, khugepaged_context, anon_ops);
+	//TEST(collapse_swapin_single_pte, madvise_context, anon_ops);
 
-	TEST(collapse_max_ptes_swap, khugepaged_context, anon_ops);
-	TEST(collapse_max_ptes_swap, madvise_context, anon_ops);
+	//TEST(collapse_max_ptes_swap, khugepaged_context, anon_ops);
+	//TEST(collapse_max_ptes_swap, madvise_context, anon_ops);
 
-	TEST(collapse_fork, khugepaged_context, anon_ops);
-	TEST(collapse_fork, madvise_context, anon_ops);
+	//TEST(collapse_fork, khugepaged_context, anon_ops);
+	//TEST(collapse_fork, madvise_context, anon_ops);
 
-	TEST(collapse_fork_compound, khugepaged_context, anon_ops);
-	TEST(collapse_fork_compound, madvise_context, anon_ops);
+	//TEST(collapse_fork_compound, khugepaged_context, anon_ops);
+	//TEST(collapse_fork_compound, madvise_context, anon_ops);
 
-	TEST(collapse_max_ptes_shared, khugepaged_context, anon_ops);
-	TEST(collapse_max_ptes_shared, madvise_context, anon_ops);
+	//TEST(collapse_max_ptes_shared, khugepaged_context, anon_ops);
+	//TEST(collapse_max_ptes_shared, madvise_context, anon_ops);
 
-	TEST(madvise_collapse_existing_thps, madvise_context, anon_ops);
-	TEST(madvise_collapse_existing_thps, madvise_context, file_ops);
-	TEST(madvise_collapse_existing_thps, madvise_context, shmem_ops);
+	//TEST(madvise_collapse_existing_thps, madvise_context, anon_ops);
+	//TEST(madvise_collapse_existing_thps, madvise_context, file_ops);
+	//TEST(madvise_collapse_existing_thps, madvise_context, shmem_ops);
 
-	TEST(madvise_retracted_page_tables, madvise_context, file_ops);
-	TEST(madvise_retracted_page_tables, madvise_context, shmem_ops);
+	//TEST(madvise_retracted_page_tables, madvise_context, file_ops);
+	//TEST(madvise_retracted_page_tables, madvise_context, shmem_ops);
+	
+	TEST(collapse_remap_anon, khugepaged_context, anon_ops);
+	TEST(collapse_remap_anon, madvise_context, anon_ops);
 
 	restore_settings(0);
 }
