@@ -1258,6 +1258,9 @@ static enum scan_result collapse_scan_pmd(struct mm_struct *mm,
 	unsigned long addr;
 	spinlock_t *ptl;
 	int node = NUMA_NO_NODE, unmapped = 0;
+	bool pte_mapped = true;
+	pte_t pteval;
+	unsigned long start_pfn;
 
 	VM_BUG_ON(start_addr & ~HPAGE_PMD_MASK);
 
@@ -1276,11 +1279,19 @@ static enum scan_result collapse_scan_pmd(struct mm_struct *mm,
 		goto out;
 	}
 
+	pteval = ptep_get(pte);
+	if (pte_present(pteval))
+		start_pfn = pte_pfn(pteval);
+	else
+		pte_mapped = false;
+
 	for (addr = start_addr, _pte = pte; _pte < pte + HPAGE_PMD_NR;
 	     _pte++, addr += PAGE_SIZE) {
+		unsigned long pfn;
+
 		cc->progress++;
 
-		pte_t pteval = ptep_get(_pte);
+		pteval = ptep_get(_pte);
 		if (pte_none_or_zero(pteval)) {
 			++none_or_zero;
 			if (!userfaultfd_armed(vma) &&
@@ -1408,6 +1419,10 @@ static enum scan_result collapse_scan_pmd(struct mm_struct *mm,
 		     folio_test_referenced(folio) ||
 		     mmu_notifier_test_young(vma->vm_mm, addr)))
 			referenced++;
+
+		pfn = page_to_pfn(page);
+		if(pte_mapped && pfn != start_pfn + _pte - pte)
+			pte_mapped = false;
 	}
 	if (cc->is_khugepaged &&
 		   (!referenced ||
@@ -1419,6 +1434,10 @@ static enum scan_result collapse_scan_pmd(struct mm_struct *mm,
 out_unmap:
 	pte_unmap_unlock(pte, ptl);
 	if (result == SCAN_SUCCEED) {
+		if (none_or_zero || unmapped || !pte_mapped ||
+			folio_order(folio) != PMD_ORDER ||
+			folio_pfn(folio) != start_pfn)
+			pte_mapped = false;
 		result = collapse_huge_page(mm, start_addr, referenced,
 					    unmapped, cc);
 		/* collapse_huge_page will return with the mmap_lock released */
