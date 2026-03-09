@@ -1373,6 +1373,20 @@ static struct folio *vma_alloc_anon_folio_pmd(struct vm_area_struct *vma,
 	return folio;
 }
 
+void map_anon_folio_pmd_nopf_x(struct folio *folio, pmd_t *pmd,
+		struct vm_area_struct *vma, unsigned long haddr)
+{
+	pmd_t entry;
+
+	entry = folio_mk_pmd(folio, vma->vm_page_prot);
+	entry = maybe_pmd_mkwrite(pmd_mkdirty(entry), vma);
+	folio_add_anon_rmap_pmd(folio, &folio->page, vma, haddr, RMAP_NONE);
+	// folio_add_lru_vma(folio, vma); // should skip
+	set_pmd_at(vma->vm_mm, haddr, pmd, entry);
+	update_mmu_cache_pmd(vma, haddr, pmd);
+	deferred_split_folio(folio, false);
+}
+
 void map_anon_folio_pmd_nopf(struct folio *folio, pmd_t *pmd,
 		struct vm_area_struct *vma, unsigned long haddr)
 {
@@ -1380,8 +1394,8 @@ void map_anon_folio_pmd_nopf(struct folio *folio, pmd_t *pmd,
 
 	entry = folio_mk_pmd(folio, vma->vm_page_prot);
 	entry = maybe_pmd_mkwrite(pmd_mkdirty(entry), vma);
-	folio_add_new_anon_rmap(folio, vma, haddr, RMAP_EXCLUSIVE);
-	folio_add_lru_vma(folio, vma);
+	folio_add_new_anon_rmap(folio, vma, haddr, RMAP_EXCLUSIVE); // not new rmap
+	folio_add_lru_vma(folio, vma); // should skip
 	set_pmd_at(vma->vm_mm, haddr, pmd, entry);
 	update_mmu_cache_pmd(vma, haddr, pmd);
 	deferred_split_folio(folio, false);

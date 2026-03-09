@@ -1131,9 +1131,12 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long a
 	 */
 	mmap_read_unlock(mm);
 
-	result = alloc_charge_folio(&folio, mm, cc);
-	if (result != SCAN_SUCCEED)
-		goto out_nolock;
+	if (!pte_mapped) {
+retry:
+		result = alloc_charge_folio(&folio, mm, cc);
+		if (result != SCAN_SUCCEED)
+			goto out_nolock;
+	}
 
 	mmap_read_lock(mm);
 	result = hugepage_vma_revalidate(mm, address, true, &vma, cc);
@@ -1204,6 +1207,20 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long a
 		result = __collapse_huge_page_isolate(vma, address, pte, cc,
 						      &compound_pagelist, pte_mapped);
 		spin_unlock(pte_ptl);
+
+		/* If originally pte_mapped:
+		 *    not pte_mapped now, we need to go back to allocate new
+		 *    folio.
+		 *    still pte_mapped, set result to SCAN_SUCCEED to
+		 *    continue.
+		 */
+		if (pte_mapped) {
+			if (result != SCAN_PTE_MAPPED_HUGEPAGE) {
+				pte_mapped = false;
+				goto retry;
+			}
+			result = SCAN_SUCCEED;
+		}
 	} else {
 		result = SCAN_NO_PTE_TABLE;
 	}
@@ -1230,9 +1247,16 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long a
 	 */
 	anon_vma_unlock_write(vma->anon_vma);
 
-	result = __collapse_huge_page_copy(pte, folio, pmd, _pmd,
-					   vma, address, pte_ptl,
-					   &compound_pagelist);
+	if (pte_mapped) {
+		folio = list_first_entry(&compound_pagelist, struct folio, lru);
+		folio_get(folio);
+		__collapse_huge_page_copy_succeeded(pte, vma, address, pte_ptl, &compound_pagelist);
+	} else {
+		result = __collapse_huge_page_copy(pte, folio, pmd, _pmd,
+						   vma, address, pte_ptl,
+						   &compound_pagelist);
+	}
+
 	pte_unmap(pte);
 	if (unlikely(result != SCAN_SUCCEED))
 		goto out_up_write;
@@ -1248,6 +1272,9 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long a
 	spin_lock(pmd_ptl);
 	BUG_ON(!pmd_none(*pmd));
 	pgtable_trans_huge_deposit(mm, pmd, pgtable);
+	if (pte_mapped)
+	map_anon_folio_pmd_nopf_x(folio, pmd, vma, address);
+	else
 	map_anon_folio_pmd_nopf(folio, pmd, vma, address);
 	spin_unlock(pmd_ptl);
 
