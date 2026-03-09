@@ -741,11 +741,8 @@ static void __collapse_huge_page_copy_succeeded(pte_t *pte,
 
 	list_for_each_entry_safe(src, tmp, compound_pagelist, lru) {
 		list_del(&src->lru);
-		node_stat_sub_folio(src, NR_ISOLATED_ANON +
-				folio_is_file_lru(src));
-		folio_unlock(src);
+		release_pte_folio(src);
 		free_swap_cache(src);
-		folio_putback_lru(src);
 	}
 }
 
