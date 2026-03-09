@@ -538,7 +538,7 @@ static void release_pte_pages(pte_t *pte, pte_t *_pte,
 
 static enum scan_result __collapse_huge_page_isolate(struct vm_area_struct *vma,
 		unsigned long start_addr, pte_t *pte, struct collapse_control *cc,
-		struct list_head *compound_pagelist)
+		struct list_head *compound_pagelist, bool pte_mapped)
 {
 	struct page *page = NULL;
 	struct folio *folio = NULL;
@@ -546,10 +546,20 @@ static enum scan_result __collapse_huge_page_isolate(struct vm_area_struct *vma,
 	pte_t *_pte;
 	int none_or_zero = 0, shared = 0, referenced = 0;
 	enum scan_result result = SCAN_FAIL;
+	pte_t pteval;
+	unsigned long start_pfn;
+
+	pteval = ptep_get(pte);
+	if (pte_present(pteval))
+		start_pfn = pte_pfn(pteval);
+	else
+		pte_mapped = false;
 
 	for (_pte = pte; _pte < pte + HPAGE_PMD_NR;
 	     _pte++, addr += PAGE_SIZE) {
-		pte_t pteval = ptep_get(_pte);
+		unsigned long pfn;
+
+		pteval = ptep_get(_pte);
 		if (pte_none_or_zero(pteval)) {
 			++none_or_zero;
 			if (!userfaultfd_armed(vma) &&
@@ -668,12 +678,20 @@ next:
 		     folio_test_referenced(folio) ||
 		     mmu_notifier_test_young(vma->vm_mm, addr)))
 			referenced++;
+
+		pfn = page_to_pfn(page);
+		if (pte_mapped && pfn != start_pfn + _pte - pte)
+			pte_mapped = false;
 	}
 
 	if (unlikely(cc->is_khugepaged && !referenced)) {
 		result = SCAN_LACK_REFERENCED_PAGE;
 	} else {
 		result = SCAN_SUCCEED;
+		if (!none_or_zero && pte_mapped &&
+			folio_order(folio) == PMD_ORDER &&
+			folio_pfn(folio) == start_pfn)
+			result = SCAN_PTE_MAPPED_HUGEPAGE;
 		trace_mm_collapse_huge_page_isolate(folio, none_or_zero,
 						    referenced, result);
 		return result;
@@ -1091,7 +1109,7 @@ static enum scan_result alloc_charge_folio(struct folio **foliop, struct mm_stru
 }
 
 static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long address,
-		int referenced, int unmapped, struct collapse_control *cc)
+		int referenced, int unmapped, struct collapse_control *cc, bool pte_mapped)
 {
 	LIST_HEAD(compound_pagelist);
 	pmd_t *pmd, _pmd;
@@ -1184,7 +1202,7 @@ static enum scan_result collapse_huge_page(struct mm_struct *mm, unsigned long a
 	pte = pte_offset_map_lock(mm, &_pmd, address, &pte_ptl);
 	if (pte) {
 		result = __collapse_huge_page_isolate(vma, address, pte, cc,
-						      &compound_pagelist);
+						      &compound_pagelist, pte_mapped);
 		spin_unlock(pte_ptl);
 	} else {
 		result = SCAN_NO_PTE_TABLE;
@@ -1439,7 +1457,7 @@ out_unmap:
 			folio_pfn(folio) != start_pfn)
 			pte_mapped = false;
 		result = collapse_huge_page(mm, start_addr, referenced,
-					    unmapped, cc);
+					    unmapped, cc, pte_mapped);
 		/* collapse_huge_page will return with the mmap_lock released */
 		*lock_dropped = true;
 	}
