@@ -2326,6 +2326,7 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 	if (order) {
 		offset = index - round_down(index, 1 << order);
 		swap = swp_entry(swp_type(swap), swp_offset(swap) + offset);
+		// 这不就等于 swp_entry(swp_type(swap) swp_offset(index)) 吗？
 	}
 
 	/* Look it up and read it in.. */
