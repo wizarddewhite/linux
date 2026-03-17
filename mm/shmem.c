@@ -2207,7 +2207,8 @@ static void shmem_set_folio_swapin_error(struct inode *inode, pgoff_t index,
 }
 
 static int shmem_split_large_entry(struct inode *inode, pgoff_t index,
-				   swp_entry_t swap, gfp_t gfp)
+				   swp_entry_t swap, gfp_t gfp,
+				   unsigned long target_order)
 {
 	struct address_space *mapping = inode->i_mapping;
 	XA_STATE_ORDER(xas, &mapping->i_pages, index, 0);
@@ -2237,11 +2238,12 @@ static int shmem_split_large_entry(struct inode *inode, pgoff_t index,
 		swap_index = round_down(index, 1 << cur_order);
 		split_order = xas_try_split_min_order(cur_order);
 
-		while (cur_order > 0) {
+		while (cur_order > target_order) {
 			pgoff_t aligned_index =
 				round_down(index, 1 << cur_order);
 			pgoff_t swap_offset = aligned_index - swap_index;
 
+			split_order = max_t(unsigned long, split_order, target_order);
 			xas_set_order(&xas, index, split_order);
 			xas_try_split(&xas, old, cur_order);
 			if (xas_error(&xas))
@@ -2364,7 +2366,7 @@ static int shmem_swapin_folio(struct inode *inode, pgoff_t index,
 		 * large swap entries. In such cases, we should split the
 		 * large swap entry to prevent possible data corruption.
 		 */
-		error = shmem_split_large_entry(inode, index, index_entry, gfp);
+		error = shmem_split_large_entry(inode, index, index_entry, gfp, folio_order(folio));
 		if (error)
 			goto failed_nolock;
 	}
