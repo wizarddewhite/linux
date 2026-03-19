@@ -1928,6 +1928,7 @@ static noinline void check_split(struct xarray *xa)
 	XA_BUG_ON(xa, !xa_empty(xa));
 	XA_STATE(xas, xa, 0);
 
+#if 0
 	order = 2 * XA_CHUNK_SHIFT + 1;
 	new_order = 2*XA_CHUNK_SHIFT ;
 
@@ -1971,6 +1972,94 @@ static noinline void check_split(struct xarray *xa)
 
 	xas_destroy(&xas);
 	xas_destroy(xa);
+#elif 0
+
+
+	// xas_try_split(&xas, xa, XA_CHUNK_SHIFT);
+	order = XA_CHUNK_SHIFT + 2;
+	xas_set_order(&xas, 0, 0);
+
+	// xa_store_order(xa, 1 << order, order, xa, GFP_KERNEL);
+	printf("\n>>> First store with order %d\n\n", order);
+	xa_store_order(xa, 0, order, xa, GFP_KERNEL);
+	xa_dump(xa);
+
+	new_order = order - 1;
+	printf("\n>>> Now try to split entry at 0 to order %d\n\n", new_order);
+	xas_set_order(&xas, 0, new_order);
+	xas_try_split(&xas, xa, order);
+	order = new_order;
+	xa_dump(xa);
+
+	printf("\n>>> Then try to split entry at 0 to xas_try_split_min_order %d\n\n", xas_try_split_min_order(order));
+	new_order = xas_try_split_min_order(order);
+	xas_set_order(&xas, 0, new_order);
+	xas_try_split(&xas, xa, order);
+	order = new_order;
+	xa_dump(xa);
+
+	printf("\n>>> Now we could split entry at 0 to xas_try_split_min_order %d\n", xas_try_split_min_order(order));
+	new_order = xas_try_split_min_order(order);
+	xas_set_order(&xas, 0, new_order);
+retry:
+	xas_try_split(&xas, xa, order);
+	if (xas_nomem(&xas, GFP_KERNEL)) {
+		printf("   # This time we need to allocate xa_node, so try again\n\n");
+		goto retry;
+	}
+	xa_dump(xa);
+
+	xas_set_order(&xas, 9, 0);
+	printf("\n>>>We load at index %d found %p, with offset %d\n",
+		xas.xa_index, xas_load(&xas), xas.xa_offset);
+
+#else
+	unsigned long index;
+
+	order = XA_CHUNK_SHIFT + 1;
+	index = 1UL << order;
+	xas_set_order(&xas, index, 0);
+
+	printf("\n>>> First store with order %d at %lu\n\n", order, index);
+	xa_store_order(xa, index, order, xa, GFP_KERNEL);
+	xa_dump(xa);
+
+	printf("\n>>> Now try to split entry at %lu to xas_try_split_min_order %d\n\n",
+			index, xas_try_split_min_order(order));
+	new_order = xas_try_split_min_order(order);
+	xas_set_order(&xas, index, new_order);
+	xas_try_split(&xas, xa, order);
+	order = new_order;
+	xa_dump(xa);
+
+	printf("\n>>> Now try to split entry at %lu to xas_try_split_min_order %d\n",
+			index, xas_try_split_min_order(order));
+	new_order = xas_try_split_min_order(order);
+	xas_set_order(&xas, index, new_order);
+retry:
+	xas_try_split(&xas, xa, order);
+	if (xas_nomem(&xas, GFP_KERNEL)) {
+		printf("   # This time we need to allocate xa_node, so try again\n\n");
+		goto retry;
+	} else if (xas_error(&xas)) {
+		printf("   # Ok, we can't split it\n\n");
+	}
+	xa_dump(xa);
+	order = new_order;
+
+	//new_order = xas_try_split_min_order(order);
+	//xas_set_order(&xas, 8, new_order);
+	//xas_try_split(&xas, xa, order);
+	//xa_dump(xa);
+
+	xas_set_order(&xas, 8, order - 1);
+
+	// Below is the test on xas_for_each_conflict(), siblings are skipped
+	xas_for_each_conflict(&xas, entry) {
+		printf("index %d offset %d\n", xas.xa_index, xas.xa_offset);
+	}
+
+#endif
 
 	return;
 
