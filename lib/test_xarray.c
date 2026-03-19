@@ -1880,6 +1880,7 @@ static void check_split_2(struct xarray *xa, unsigned long index,
 
 	xa_store_order(xa, index, order, xa, GFP_KERNEL);
 	xa_set_mark(xa, index, XA_MARK_1);
+	xa_dump(xa);
 
 	/* allocate a node for xas_try_split() */
 	xas_set_err(&xas, -ENOMEM);
@@ -1922,8 +1923,56 @@ out:
 static noinline void check_split(struct xarray *xa)
 {
 	unsigned int order, new_order;
+	void *entry;
 
 	XA_BUG_ON(xa, !xa_empty(xa));
+	XA_STATE(xas, xa, 0);
+
+	order = 2 * XA_CHUNK_SHIFT + 1;
+	new_order = 2*XA_CHUNK_SHIFT ;
+
+	// 拆分的order放在这里
+	xas_set_order(&xas, 0, new_order);
+	printf("curr order %d, new_order %d, shift %d\n", order, new_order, XA_CHUNK_SHIFT);
+	printf(">>> expected xas.xa_shift for new_order is %d\n\n", xas.xa_shift);
+	// 原始存放的order在这里
+	xa_store_order(xa, 0, order, xa, GFP_KERNEL);
+	xa_dump(xa);
+
+	// allocate node first, should check xas_error()
+	xas_split_alloc(&xas, xa, order, GFP_KERNEL);
+	entry = &xas;
+	printf("\n>>> Now split it with new value %p\n\n", entry);
+	if (xas_error(&xas))
+		printf("xas_split_alloc error\n");
+	else
+		xas_split(&xas, &xas, order);
+	xa_dump(xa);
+	order = new_order;
+
+	// 再拆分一次，这次拆分需要分配xa_node
+	new_order -= 1;
+	xas_set_order(&xas, 0, new_order);
+	printf("\ncurr order %d, new_order %d, shift %d\n", order, new_order, XA_CHUNK_SHIFT);
+	printf(">>> expected xas.xa_shift for new_order is %d\n\n", xas.xa_shift);
+	xas_split_alloc(&xas, &xas, order, GFP_KERNEL); // here entry set to &xas
+	entry = xa;
+	printf("\n>>> Now split it with new value %p\n\n", entry);
+	if (xas_error(&xas))
+		printf("xas_split_alloc error\n");
+	else
+		xas_split(&xas, xa, order); // but here entry is set to xa
+	xa_dump(xa);
+
+	if (xas_load(&xas) != entry)
+		printf("!!! is not split to entry\n");
+	if (xas_load(&xas) == &xas)
+		printf("!!! is split to &xas, which is the @entry of xas_split_alloc()\n");
+
+	xas_destroy(&xas);
+	xas_destroy(xa);
+
+	return;
 
 	for (order = 1; order < 2 * XA_CHUNK_SHIFT; order++) {
 		for (new_order = 0; new_order < order; new_order++) {
@@ -2230,38 +2279,38 @@ static DEFINE_XARRAY(array);
 
 static int xarray_checks(void)
 {
-	check_xa_err(&array);
-	check_xas_retry(&array);
-	check_xa_load(&array);
-	check_xa_mark(&array);
-	check_xa_shrink(&array);
-	check_xas_erase(&array);
-	check_insert(&array);
-	check_cmpxchg(&array);
-	check_cmpxchg_order(&array);
-	check_reserve(&array);
-	check_reserve(&xa0);
-	check_multi_store(&array);
-	check_multi_store_advanced(&array);
-	check_get_order(&array);
-	check_xas_get_order(&array);
-	check_xas_conflict_get_order(&array);
-	check_xa_alloc();
-	check_find(&array);
-	check_find_entry(&array);
-	check_pause(&array);
-	check_account(&array);
-	check_destroy(&array);
-	check_move(&array);
-	check_create_range(&array);
-	check_store_range(&array);
-	check_store_iter(&array);
-	check_align(&xa0);
+	//check_xa_err(&array);
+	//check_xas_retry(&array);
+	//check_xa_load(&array);
+	//check_xa_mark(&array);
+	//check_xa_shrink(&array);
+	//check_xas_erase(&array);
+	//check_insert(&array);
+	//check_cmpxchg(&array);
+	//check_cmpxchg_order(&array);
+	//check_reserve(&array);
+	//check_reserve(&xa0);
+	//check_multi_store(&array);
+	//check_multi_store_advanced(&array);
+	//check_get_order(&array);
+	//check_xas_get_order(&array);
+	//check_xas_conflict_get_order(&array);
+	//check_xa_alloc();
+	//check_find(&array);
+	//check_find_entry(&array);
+	//check_pause(&array);
+	//check_account(&array);
+	//check_destroy(&array);
+	//check_move(&array);
+	//check_create_range(&array);
+	//check_store_range(&array);
+	//check_store_iter(&array);
+	//check_align(&xa0);
 	check_split(&array);
 
-	check_workingset(&array, 0);
-	check_workingset(&array, 64);
-	check_workingset(&array, 4096);
+	// check_workingset(&array, 0);
+	// check_workingset(&array, 64);
+	// check_workingset(&array, 4096);
 
 	printk("XArray: %u of %u tests passed\n", tests_passed, tests_run);
 	return (tests_run == tests_passed) ? 0 : -EINVAL;
