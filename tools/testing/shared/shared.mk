@@ -24,7 +24,7 @@ SHARED_DEPS = Makefile ../shared/shared.mk ../shared/*.h generated/map-shift.h \
 	../../../lib/test_maple_tree.c
 
 ifndef SHIFT
-	SHIFT=3
+	SHIFT=4
 endif
 
 ifeq ($(BUILD), 32)
