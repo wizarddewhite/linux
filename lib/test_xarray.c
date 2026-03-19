@@ -2035,7 +2035,7 @@ retry:
 	printf("\n>>> Now try to split entry at %lu to xas_try_split_min_order %d\n",
 			index, xas_try_split_min_order(order));
 	new_order = xas_try_split_min_order(order);
-	xas_set_order(&xas, index, new_order);
+	xas_set_order(&xas, index, new_order - 1); // split to (new_order - 1) would fail
 retry:
 	xas_try_split(&xas, xa, order);
 	if (xas_nomem(&xas, GFP_KERNEL)) {
