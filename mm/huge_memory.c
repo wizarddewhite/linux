@@ -3379,7 +3379,7 @@ static bool __split_huge_pmd_locked(struct vm_area_struct *vma, pmd_t *pmd,
 
 	if (!pmd_is_migration_entry(*pmd))
 		folio_remove_rmap_pmd(folio, page, vma);
-	if (freeze)
+	if (freeze) // pmd_is_migration_entry()
 		put_page(page);
 
 	smp_wmb(); /* make pte visible before pmd */
