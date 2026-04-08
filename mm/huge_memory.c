@@ -4462,7 +4462,7 @@ void deferred_split_folio(struct folio *folio, bool partially_mapped)
 
 	ds_queue = folio_split_queue_lock_irqsave(folio, &flags);
 	if (partially_mapped) {
-		if (!folio_test_partially_mapped(folio)) {
+		if (!folio_test_partially_mapped(folio)) { // concurrent ?
 			folio_set_partially_mapped(folio);
 			if (folio_test_pmd_mappable(folio))
 				count_vm_event(THP_DEFERRED_SPLIT_PAGE);
