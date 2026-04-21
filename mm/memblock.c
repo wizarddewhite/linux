@@ -2231,7 +2231,7 @@ static void __init_memblock __memblock_dump_all(void)
 
 void __init_memblock memblock_dump_all(void)
 {
-	if (memblock_debug)
+	// if (memblock_debug)
 		__memblock_dump_all();
 }
 

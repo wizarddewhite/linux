@@ -125,7 +125,8 @@ void __init setup_node_to_cpumask_map(void)
 
 static int __init numa_register_nodes(void)
 {
-	int nid;
+	static struct memblock_region *r;
+	int i = 0, nid;
 
 	if (!memblock_validate_numa_coverage(SZ_1M))
 		return -EINVAL;
@@ -147,6 +148,14 @@ static int __init numa_register_nodes(void)
 	}
 
 	/* Dump memblock with node info and return. */
+	memblock_dump_all();
+
+	/* Mark mirror by hand */
+	for_each_mem_region(r) {
+		if (i++ < 2)
+			memblock_mark_mirror(r->base, r->size);
+	}
+
 	memblock_dump_all();
 	return 0;
 }
