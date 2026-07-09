@@ -254,7 +254,14 @@ restart:
 		    pmd_is_device_private_entry(pmde))) {
 			pvmw->ptl = pmd_lock(mm, pvmw->pmd);
 			pmde = *pvmw->pmd;
-			if (pmd_is_migration_entry(pmde)) {
+
+			if (likely(pmd_trans_huge(pmde))) {
+				if (pvmw->flags & PVMW_MIGRATION)
+					return not_found(pvmw);
+				if (!check_pmd(pmd_pfn(pmde), pvmw))
+					return not_found(pvmw);
+				return true;
+			} else if (pmd_is_migration_entry(pmde)) {
 				softleaf_t entry;
 
 				if (!(pvmw->flags & PVMW_MIGRATION))
@@ -275,13 +282,7 @@ restart:
 			} else if (!pmd_present(pmde)) {
 				return not_found(pvmw);
 			}
-			if (likely(pmd_trans_huge(pmde))) {
-				if (pvmw->flags & PVMW_MIGRATION)
-					return not_found(pvmw);
-				if (!check_pmd(pmd_pfn(pmde), pvmw))
-					return not_found(pvmw);
-				return true;
-			}
+
 			/* THP/device-private pmd was split under us: handle on pte level */
 			spin_unlock(pvmw->ptl);
 			pvmw->ptl = NULL;
