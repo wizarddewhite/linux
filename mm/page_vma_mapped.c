@@ -13,6 +13,17 @@ static inline bool not_found(struct page_vma_mapped_walk *pvmw)
 	return false;
 }
 
+/* Returns true if the two ranges overlap.  Careful to not overflow. */
+static bool check_pfn_range(struct page_vma_mapped_walk *pvmw, unsigned long pfn,
+			    unsigned long pte_nr)
+{
+	if ((pfn + pte_nr - 1) < pvmw->pfn)
+		return false;
+	if (pfn > pvmw->pfn + pvmw->nr_pages - 1)
+		return false;
+	return true;
+}
+
 static bool map_pte(struct page_vma_mapped_walk *pvmw, pmd_t *pmdvalp,
 		    spinlock_t **ptlp)
 {
@@ -135,21 +146,7 @@ static bool check_pte(struct page_vma_mapped_walk *pvmw, unsigned long pte_nr)
 		pfn = softleaf_to_pfn(entry);
 	}
 
-	if ((pfn + pte_nr - 1) < pvmw->pfn)
-		return false;
-	if (pfn > (pvmw->pfn + pvmw->nr_pages - 1))
-		return false;
-	return true;
-}
-
-/* Returns true if the two ranges overlap.  Careful to not overflow. */
-static bool check_pmd(unsigned long pfn, struct page_vma_mapped_walk *pvmw)
-{
-	if ((pfn + HPAGE_PMD_NR - 1) < pvmw->pfn)
-		return false;
-	if (pfn > pvmw->pfn + pvmw->nr_pages - 1)
-		return false;
-	return true;
+	return check_pfn_range(pvmw, pfn, pte_nr);
 }
 
 static void step_forward(struct page_vma_mapped_walk *pvmw, unsigned long size)
@@ -258,7 +255,7 @@ restart:
 			if (likely(pmd_trans_huge(pmde))) {
 				if (pvmw->flags & PVMW_MIGRATION)
 					return not_found(pvmw);
-				if (!check_pmd(pmd_pfn(pmde), pvmw))
+				if (!check_pfn_range(pvmw, pmd_pfn(pmde), HPAGE_PMD_NR))
 					return not_found(pvmw);
 				return true;
 			} else if (pmd_is_migration_entry(pmde)) {
@@ -267,7 +264,7 @@ restart:
 				if (!(pvmw->flags & PVMW_MIGRATION))
 					return not_found(pvmw);
 				entry = softleaf_from_pmd(pmde);
-				if (!check_pmd(softleaf_to_pfn(entry), pvmw))
+				if (!check_pfn_range(pvmw, softleaf_to_pfn(entry), HPAGE_PMD_NR))
 					return not_found(pvmw);
 				return true;
 			} else if (pmd_is_device_private_entry(pmde)) {
@@ -276,7 +273,7 @@ restart:
 				if (pvmw->flags & PVMW_MIGRATION)
 					return not_found(pvmw);
 				entry = softleaf_from_pmd(pmde);
-				if (!check_pmd(softleaf_to_pfn(entry), pvmw))
+				if (!check_pfn_range(pvmw, softleaf_to_pfn(entry), HPAGE_PMD_NR))
 					return not_found(pvmw);
 				return true;
 			} else if (!pmd_present(pmde)) {
