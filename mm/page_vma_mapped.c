@@ -149,6 +149,22 @@ static bool check_pte(struct page_vma_mapped_walk *pvmw, unsigned long pte_nr)
 	return check_pfn_range(pvmw, pfn, pte_nr);
 }
 
+static bool check_pmd(struct page_vma_mapped_walk *pvmw, pmd_t pmde)
+{
+	struct vm_area_struct *vma = pvmw->vma;
+	struct mm_struct *mm = vma->vm_mm;
+
+	if (pvmw->ptl)
+		return true;
+	pvmw->ptl = pmd_lock(mm, pvmw->pmd);
+	if (likely(pmd_same(pmde, *pvmw->pmd)))
+		return true;
+	/* pmd is changed under us, restart the process */
+	spin_unlock(pvmw->ptl);
+	pvmw->ptl = NULL;
+	return false;
+}
+
 static void step_forward(struct page_vma_mapped_walk *pvmw, unsigned long size)
 {
 	pvmw->address = (pvmw->address + size) & ~(size - 1);
@@ -249,14 +265,18 @@ restart:
 		if (IS_ENABLED(CONFIG_TRANSPARENT_HUGEPAGE) &&
 		    (pmd_trans_huge(pmde) || pmd_is_migration_entry(pmde) ||
 		    pmd_is_device_private_entry(pmde))) {
-			pvmw->ptl = pmd_lock(mm, pvmw->pmd);
-			pmde = *pvmw->pmd;
+			if (pvmw->flags & PVMW_SYNC) {
+				pvmw->ptl = pmd_lock(mm, pvmw->pmd);
+				pmde = *pvmw->pmd;
+			}
 
 			if (likely(pmd_trans_huge(pmde))) {
 				if (pvmw->flags & PVMW_MIGRATION)
 					return not_found(pvmw);
 				if (!check_pfn_range(pvmw, pmd_pfn(pmde), HPAGE_PMD_NR))
 					return not_found(pvmw);
+				if (!check_pmd(pvmw, pmde))
+					goto restart;
 				return true;
 			} else if (pmd_is_migration_entry(pmde)) {
 				softleaf_t entry;
@@ -266,6 +286,8 @@ restart:
 				entry = softleaf_from_pmd(pmde);
 				if (!check_pfn_range(pvmw, softleaf_to_pfn(entry), HPAGE_PMD_NR))
 					return not_found(pvmw);
+				if (!check_pmd(pvmw, pmde))
+					goto restart;
 				return true;
 			} else if (pmd_is_device_private_entry(pmde)) {
 				softleaf_t entry;
@@ -275,14 +297,17 @@ restart:
 				entry = softleaf_from_pmd(pmde);
 				if (!check_pfn_range(pvmw, softleaf_to_pfn(entry), HPAGE_PMD_NR))
 					return not_found(pvmw);
+				if (!check_pmd(pvmw, pmde))
+					goto restart;
 				return true;
 			} else if (!pmd_present(pmde)) {
 				return not_found(pvmw);
 			}
 
-			/* THP/device-private pmd was split under us: handle on pte level */
+			/* THP/device-private pmd was split under us: restart the process */
 			spin_unlock(pvmw->ptl);
 			pvmw->ptl = NULL;
+			goto restart;
 		} else if (!pmd_present(pmde)) {
 			if ((pvmw->flags & PVMW_SYNC) &&
 			    thp_vma_suitable_order(vma, pvmw->address,
